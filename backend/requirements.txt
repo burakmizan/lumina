@@ -1,0 +1,37 @@
+# FastAPI & ASGI server
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+python-multipart==0.0.17
+
+# MongoDB (async driver)
+motor==3.6.0
+pymongo==4.10.1
+
+# Pydantic v2 & settings management
+pydantic==2.9.2
+pydantic-settings==2.6.0
+email-validator==2.2.0
+
+# Google Cloud & Gemini
+google-generativeai==0.8.3
+google-cloud-aiplatform==1.70.0
+
+# MCP (Model Context Protocol) — for MongoDB Agent tool integration
+mcp==1.2.0
+
+# HTTP client (for internal service calls)
+httpx==0.28.0
+aiohttp==3.10.0
+
+# Email sending (async SMTP)
+aiosmtplib==3.0.1
+jinja2==3.1.4
+
+# Utilities
+python-dotenv==1.0.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+aiofiles==24.1.0
+
+# Async compatibility — thread-pool safe for Windows (avoids TCP reset errors)
+anyio[trio]==4.6.2

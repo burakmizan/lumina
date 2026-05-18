@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+gcp-service-account.json
+*.key.json
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ERP data exports (may contain sensitive financial data)
+*.xlsx
+*.csv
+data/
+
+# Logs
+*.log
+logs/
+
+CLAUDE.md
+
+ROADMAP.txt
