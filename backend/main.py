@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from core.database import connect_to_mongo, close_mongo_connection
-from api.routes import companies, ledgers, discrepancies, reconciliation
+from api.routes import companies, ledgers, discrepancies, reconciliation, portal
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.include_router(companies.router, prefix="/api/v1/companies", tags=["Companie
 app.include_router(ledgers.router, prefix="/api/v1/ledgers", tags=["Ledgers"])
 app.include_router(discrepancies.router, prefix="/api/v1/discrepancies", tags=["Discrepancies"])
 app.include_router(reconciliation.router, prefix="/api/v1/reconciliation", tags=["Reconciliation"])
+app.include_router(portal.router, prefix="/api/v1/portal", tags=["Portal"])
 
 
 @app.get("/health", tags=["Health"])

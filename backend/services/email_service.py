@@ -16,7 +16,7 @@ class EmailService:
             return False
 
         message = MIMEMultipart("alternative")
-        message["Subject"] = f"Mutabakat Bildirimi — Ref: {discrepancy.get('ledger_ref', '')}"
+        message["Subject"] = f"Reconciliation Notice — Ref: {discrepancy.get('ledger_ref', '')}"
         message["From"] = settings.EMAIL_FROM
         message["To"] = recipient_email
         message.attach(MIMEText(discrepancy.get("email_draft", ""), "plain", "utf-8"))

@@ -5,24 +5,24 @@ Used by GeminiAgent to provide a consistent format hint in its prompts.
 from jinja2 import Template
 
 RECONCILIATION_EMAIL_TEMPLATE = """\
-Sayın {{ recipient_name }},
+Dear {{ recipient_name }},
 
-{{ company_a_name }} Muhasebe Departmanı olarak, {{ ledger_ref }} referans \
-numaralı işleme ilişkin mutabakat talebimizi iletmekteyiz.
+As the Accounting Department of {{ company_a_name }}, we are writing regarding \
+transaction reference {{ ledger_ref }} and would like to initiate a reconciliation request.
 
-Kayıtlarımıza göre işlem detayları:
-  - İşlem Tutarı   : {{ amount_a | float | round(2) }} {{ currency }}
-  - İşlem Tarihi   : {{ transaction_date }}
-  - İşlem Türü     : {{ transaction_type }}
+According to our records, the transaction details are as follows:
+  - Transaction Amount : {{ amount_a | float | round(2) }} {{ currency }}
+  - Transaction Date   : {{ transaction_date }}
+  - Transaction Type   : {{ transaction_type }}
 
-Ancak söz konusu kaydın tarafınızdaki tutarı \
-{{ amount_b | float | round(2) }} {{ currency }} olarak görünmektedir. \
-Aradaki {{ difference | float | round(2) }} {{ currency }} tutarındaki \
-farkın incelenmesini ve tarafımıza yazılı olarak bildirilmesini rica ederiz.
+However, the amount recorded on your side for this transaction appears to be \
+{{ amount_b | float | round(2) }} {{ currency }}. We kindly request that the \
+discrepancy of {{ difference | float | round(2) }} {{ currency }} be reviewed \
+and that we receive your written confirmation.
 
-Saygılarımızla,
+Yours sincerely,
 {{ contact_name }}
-{{ company_a_name }} Muhasebe Departmanı
+{{ company_a_name }} — Accounting Department
 """
 
 

@@ -7,15 +7,15 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_INSTRUCTION = """
 You are Lumina, an expert autonomous B2B financial reconciliation AI agent.
-Your mission is to analyze intercompany ledger records from MongoDB, identify
-discrepancies between two companies' books, determine the root cause of each
-mismatch, and draft professional reconciliation emails in Turkish.
+Your mission is to analyze intercompany ledger records, identify discrepancies
+between two companies' books, determine the root cause of each mismatch, and
+draft professional reconciliation emails in English.
 
 Guidelines:
 - Be precise with amounts, dates, currencies, and reference numbers.
 - Classify each discrepancy as one of: amount_mismatch, missing_record, date_mismatch, duplicate.
 - Root cause analysis must be concise (2-3 sentences) and actionable.
-- Draft emails in formal Turkish, addressed to the counterparty's muhasebe yetkilisi.
+- Draft emails in formal English, addressed to the counterparty's accounting officer.
 - Always return valid JSON with keys "analysis" and "email_draft".
 """
 
@@ -38,8 +38,8 @@ class GeminiAgent:
         prompt = f"""
 Analyze this intercompany ledger discrepancy and return a JSON object.
 
-Company A: {company_a.get('name')} (Vergi No: {company_a.get('tax_id')})
-Company B: {company_b.get('name')} (Vergi No: {company_b.get('tax_id')})
+Company A: {company_a.get('name')} (Tax ID: {company_a.get('tax_id')})
+Company B: {company_b.get('name')} (Tax ID: {company_b.get('tax_id')})
 Transaction Reference: {ledger_ref}
 
 Company A Record: {json.dumps(records.get('company_a_record'), ensure_ascii=False, default=str)}
@@ -48,7 +48,7 @@ Company B Record: {json.dumps(records.get('company_b_record'), ensure_ascii=Fals
 Return ONLY valid JSON with this exact structure:
 {{
   "analysis": "<2-3 sentence root cause analysis in English>",
-  "email_draft": "<formal reconciliation email body in Turkish>"
+  "email_draft": "<formal reconciliation email body in English>"
 }}
 """
         try:

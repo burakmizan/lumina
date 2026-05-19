@@ -26,8 +26,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     DEBUG: bool = True
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
 
-    model_config = {"env_file": ".env", "case_sensitive": True}
+    model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}
 
 
 settings = Settings()

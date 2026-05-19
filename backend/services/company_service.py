@@ -13,6 +13,8 @@ class CompanyService:
         docs = []
         async for doc in self.collection.find():
             doc["id"] = str(doc.pop("_id"))
+            doc.setdefault("status", "active")
+            doc.setdefault("is_own_company", False)
             docs.append(doc)
         return docs
 
@@ -22,6 +24,18 @@ class CompanyService:
         doc = await self.collection.find_one({"_id": ObjectId(company_id)})
         if doc:
             doc["id"] = str(doc.pop("_id"))
+            doc.setdefault("status", "active")
+            doc.setdefault("is_own_company", False)
+        return doc
+
+    async def get_own_company(self) -> Optional[dict]:
+        doc = await self.collection.find_one({"is_own_company": True})
+        if not doc:
+            doc = await self.collection.find_one({})
+        if doc:
+            doc["id"] = str(doc.pop("_id"))
+            doc.setdefault("status", "active")
+            doc.setdefault("is_own_company", False)
         return doc
 
     async def create(self, payload: CompanyCreate) -> dict:
@@ -45,6 +59,8 @@ class CompanyService:
         )
         if doc:
             doc["id"] = str(doc.pop("_id"))
+            doc.setdefault("status", "active")
+            doc.setdefault("is_own_company", False)
         return doc
 
     async def delete(self, company_id: str) -> bool:
