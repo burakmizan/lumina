@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import io
 
-from api.dependencies import get_db
+from api.dependencies import get_db, require_permission
 from core.config import settings
 from models.erp_integration import ErpIntegrationCreate, ErpIntegrationResponse, ErpIntegrationCreatedResponse
 from services.erp_integration_service import ErpIntegrationService
@@ -14,7 +13,10 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[ErpIntegrationResponse])
-async def list_integrations(db: AsyncIOMotorDatabase = Depends(get_db)):
+async def list_integrations(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("erp_integration.view")),
+):
     return await ErpIntegrationService(db).list_all()
 
 
@@ -22,15 +24,16 @@ async def list_integrations(db: AsyncIOMotorDatabase = Depends(get_db)):
 async def create_integration(
     payload: ErpIntegrationCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("erp_integration.manage")),
 ):
-    result = await ErpIntegrationService(db).create(payload.name, payload.description)
-    return result
+    return await ErpIntegrationService(db).create(payload.name, payload.description)
 
 
 @router.delete("/{integration_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_integration(
     integration_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("erp_integration.manage")),
 ):
     deleted = await ErpIntegrationService(db).delete(integration_id)
     if not deleted:
@@ -41,16 +44,12 @@ async def delete_integration(
 async def download_agent_package(
     integration_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("erp_integration.manage")),
 ):
-    """
-    Regenerates the API key for this integration (invalidating the previous one),
-    builds and streams back a ZIP containing:
-      - config.json (tracker_id, server_url, fresh api_key)
-      - lumina-agent.exe (placeholder binary)
-      - INSTALLATION_GUIDE.md
-    """
     svc = ErpIntegrationService(db)
-    result = await svc.build_agent_package(integration_id, settings.FRONTEND_BASE_URL.replace(":3000", ":8000"))
+    result = await svc.build_agent_package(
+        integration_id, settings.FRONTEND_BASE_URL.replace(":3000", ":8000")
+    )
     if not result:
         raise HTTPException(status_code=404, detail="Integration not found")
 

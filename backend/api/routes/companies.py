@@ -61,6 +61,12 @@ async def bulk_import_counterparties(
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
+@router.post("/sync", status_code=status.HTTP_200_OK)
+async def sync_companies(payload: List[dict], db: AsyncIOMotorDatabase = Depends(get_db)):
+    """Syncs Master Data (Counterparties) and returns tax_id -> Object_ID mapping for Ledgers."""
+    mapping = await CompanyService(db).sync_companies(payload)
+    return {"synced_count": len(mapping), "mapping": mapping}
+
 @router.get("/", response_model=List[CompanyResponse])
 async def list_companies(db: AsyncIOMotorDatabase = Depends(get_db)):
     return await CompanyService(db).get_all()

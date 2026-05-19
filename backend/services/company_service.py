@@ -252,3 +252,35 @@ class CompanyService:
                 logger.warning("[CompanyService.bulk_import] %s", exc)
 
         return {"created": created, "updated": updated, "skipped": skipped, "errors": errors}
+
+    async def sync_companies(self, records: list[dict]) -> dict:
+        """Enterprise Tier-1: Upserts companies from JSON and returns tax_id -> _id mapping."""
+        mapping = {}
+        now = datetime.utcnow()
+        for raw in records:
+            tax_id = str(raw.get("tax_id", "")).strip()
+            if not tax_id:
+                continue
+            
+            update_data = {
+                "name": str(raw.get("name", "")).strip(),
+                "reconciliation_email": str(raw.get("reconciliation_email", "")).strip() or f"noreply@{tax_id}.invalid",
+                "customer_code": str(raw.get("customer_code", "")).strip(),
+                "contact_name": str(raw.get("contact_name", "")).strip(),
+                "updated_at": now
+            }
+            
+            doc = await self.collection.find_one_and_update(
+                {"tax_id": tax_id},
+                {"$set": update_data},
+                return_document=True
+            )
+            
+            if not doc:
+                new_doc = {**update_data, "tax_id": tax_id, "status": "active", "is_own_company": False, "phones": [], "emails": [], "created_at": now}
+                res = await self.collection.insert_one(new_doc)
+                mapping[tax_id] = str(res.inserted_id)
+            else:
+                mapping[tax_id] = str(doc["_id"])
+                
+        return mapping

@@ -16,6 +16,21 @@ class CloudSync:
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
 
+    async def push_companies(self, records: List[dict]) -> dict:
+        if not records:
+            return {}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self.api_url}/api/v1/companies/sync",
+                json=records,
+                headers={"X-API-Key": self.api_key, "Content-Type": "application/json"}
+            )
+        if response.status_code in (200, 201):
+            logger.info(f"Master Data Sync: {len(records)} companies processed.")
+            return response.json().get("mapping", {})
+        logger.error(f"Company sync failed: {response.text}")
+        return {}
+
     async def push_ledgers(self, records: List[dict]) -> bool:
         if not records:
             logger.info("No records to sync — skipping.")

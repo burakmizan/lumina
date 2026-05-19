@@ -37,8 +37,12 @@ class ReconciliationEngine:
             logger.error(f"[Run {run_id}] One or both companies not found.")
             return run_id
 
-        ledgers_a = await self.ledger_svc.get_all(company_id=company_a_id)
-        ledgers_b = await self.ledger_svc.get_all(company_id=company_b_id)
+        # Enterprise Tier-1: Sadece bu iki firma arasındaki cari hesap hareketlerini filtrele
+        all_a = await self.ledger_svc.get_all(company_id=company_a_id)
+        all_b = await self.ledger_svc.get_all(company_id=company_b_id)
+        
+        ledgers_a = [l for l in all_a if str(l.get("counterparty_id")) == str(company_b_id)]
+        ledgers_b = [l for l in all_b if str(l.get("counterparty_id")) == str(company_a_id)]
 
         map_a = {l["transaction_ref"]: l for l in ledgers_a}
         map_b = {l["transaction_ref"]: l for l in ledgers_b}
@@ -83,15 +87,21 @@ class ReconciliationEngine:
         return run_id
 
     def _classify(self, rec_a: dict, rec_b: dict) -> str:
-        if rec_a is None:
+        if not rec_a:
             return "missing_record"
-        if rec_b is None:
+        if not rec_b:
             return "missing_record"
-        if abs(rec_a["amount"] - rec_b["amount"]) > 0.01:
+            
+        amt_a = float(rec_a.get("amount") or 0.0)
+        amt_b = float(rec_b.get("amount") or 0.0)
+        
+        if abs(amt_a - amt_b) > 0.01:
             return "amount_mismatch"
+            
         # Compare dates as ISO strings to avoid tz issues
         date_a = str(rec_a.get("transaction_date", ""))[:10]
         date_b = str(rec_b.get("transaction_date", ""))[:10]
         if date_a != date_b:
             return "date_mismatch"
+            
         return None

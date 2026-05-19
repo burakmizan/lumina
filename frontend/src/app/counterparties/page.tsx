@@ -12,6 +12,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { Toast } from '@/components/ui/Toast'
 import {
   getCompanies,
+  getCompanySettings,
   startReconciliationSession,
   updateCompany,
   getCounterpartySessions,
@@ -691,6 +692,12 @@ export default function CounterpartiesPage() {
     queryFn: getCompanies,
   })
 
+  const { data: companySettings } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: getCompanySettings,
+    retry: false,
+  })
+
   const ownCompany     = companies.find(c => c.is_own_company) ?? companies[0]
   const counterparties = companies.filter(c => c.id !== ownCompany?.id)
 
@@ -832,15 +839,18 @@ export default function CounterpartiesPage() {
       </div>
 
       {/* ── Own company card ── */}
-      {ownCompany && (
+      {companySettings && (
         <div className="mb-4 p-4 bg-white border border-[#29BE98]/20 rounded-2xl flex items-center gap-4">
           <div className="w-9 h-9 rounded-xl bg-[#29BE98]/10 border border-[#29BE98]/20 flex items-center justify-center flex-shrink-0">
             <Zap className="w-4.5 h-4.5 text-[#29BE98]" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-widest text-[#29BE98] mb-0.5">Your Company</p>
-            <p className="text-sm font-semibold text-slate-900">{ownCompany.name}</p>
-            <p className="text-xs text-slate-500">Tax ID: {ownCompany.tax_id} · {ownCompany.reconciliation_email}</p>
+            <p className="text-sm font-semibold text-slate-900">{companySettings.identity?.company_name}</p>
+            <p className="text-xs text-slate-500">
+              {companySettings.identity?.identifier_type}: {companySettings.identity?.identifier_value}
+              {companySettings.contact?.contact_email && ` · ${companySettings.contact.contact_email}`}
+            </p>
           </div>
           <span className="text-[10px] px-2 py-1 bg-[#29BE98]/10 text-[#29BE98] border border-[#29BE98]/20 rounded-lg font-medium flex-shrink-0">Initiator</span>
         </div>

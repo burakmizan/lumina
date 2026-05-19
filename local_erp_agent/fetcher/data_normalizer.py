@@ -45,10 +45,10 @@ DATE_FORMATS = ["%d.%m.%Y", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"]
 
 
 class DataNormalizer:
-    def __init__(self, company_id: str, counterparty_id: str, source: str):
+    def __init__(self, company_id: str, source: str, counterparty_mapping: dict = None):
         self.company_id = company_id
-        self.counterparty_id = counterparty_id
         self.source = source
+        self.counterparty_mapping = counterparty_mapping or {}
 
     def normalize(self, raw_records: List[dict]) -> List[dict]:
         normalized = []
@@ -67,9 +67,13 @@ class DataNormalizer:
             lumina_key = COLUMN_MAP.get(str(raw_key).strip(), raw_key.lower().replace(" ", "_"))
             mapped[lumina_key] = raw_val
 
+        # Resolve counterparty_id from tax_id dynamically mapped by the backend
+        tax_id = str(raw.get("tax_id") or raw.get("counterparty_tax_id") or "").strip()
+        resolved_counterparty_id = self.counterparty_mapping.get(tax_id, "unknown_counterparty")
+
         return {
             "company_id": self.company_id,
-            "counterparty_id": self.counterparty_id,
+            "counterparty_id": resolved_counterparty_id,
             "transaction_ref": str(mapped.get("transaction_ref") or uuid.uuid4()),
             "transaction_type": TRANSACTION_TYPE_MAP.get(
                 str(mapped.get("transaction_type", "")).strip(), "invoice"

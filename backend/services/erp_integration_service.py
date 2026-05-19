@@ -33,25 +33,25 @@ This package contains the Lumina local synchronization agent. It runs on your co
 internal network and pushes ERP/accounting data to the Lumina cloud platform.
 
 ## Contents
-  lumina-agent.exe       — Agent executable (Windows x64)
+  start-lumina.bat       — Agent Launcher Script
   config.json            — Pre-configured credentials (DO NOT share this file)
   INSTALLATION_GUIDE.md  — This document
 
 ## Prerequisites
   - Windows 10 / Server 2016 or later (x64)
   - Network access to the Lumina API endpoint listed in config.json
+  - Python 3.10+ installed
   - Firewall rule: outbound HTTPS (port 443) to the server URL
 
 ## Quick Start
-  1. Place all three files in the same directory (e.g., C:\\Lumina\\Agent\\)
-  2. Right-click lumina-agent.exe → Run as administrator
-  3. The agent reads config.json automatically on startup
-  4. A log file (lumina-agent.log) is created in the same directory
+  1. Extract these files into your Lumina Agent source folder (e.g., C:\\Lumina\\Agent\\)
+  2. Double-click start-lumina.bat
+  3. The agent reads config.json automatically and starts syncing
 
 ## Scheduled Synchronization (Recommended)
   Use Windows Task Scheduler to run the agent on a fixed interval:
 
-    Action  : Start a program → lumina-agent.exe
+    Action  : Start a program → start-lumina.bat
     Trigger : Daily / Every 6 hours (adjust to your ERP update frequency)
     Settings: Run whether user is logged on or not
 
@@ -71,10 +71,27 @@ internal network and pushes ERP/accounting data to the Lumina cloud platform.
   Open an issue at https://github.com/your-org/lumina or email support@lumina.ai
 """
 
-_AGENT_EXE_STUB = (
-    b"LUMINA-AGENT-PLACEHOLDER\n"
-    b"This binary is a placeholder for the actual compiled agent.\n"
-    b"Replace with the production executable before deployment.\n"
+_AGENT_BAT_STUB = (
+    b"@echo off\n"
+    b"title Lumina Enterprise ERP Agent\n"
+    b"rem Force enable ANSI VT100 colors in Windows console\n"
+    b"python -c \"import os; os.system('')\"\n"
+    b"cls\n"
+    b"echo.\n"
+    b"echo \033[31m   _    _   _ __  __ ___ _  _  _    \033[0m\n"
+    b"echo \033[33m  ^| ^|  ^| ^| ^| ^|  \\/  ^|_ _^| \\^| ^|/ \\   \033[0m\n"
+    b"echo \033[32m  ^| ^|__^| ^|_^| ^| ^|\\/^| ^|^| ^|^| .` / _ \\  \033[0m\n"
+    b"echo \033[36m  ^|____^|\\___/^|_^|  ^|_^|___^|_^|\\_/_/ \\_\\\033[0m\n"
+    b"echo.\n"
+    b"echo \033[34m==========================================================\033[0m\n"
+    b"echo \033[97m   LUMINA LOCAL ERP AGENT - SECURE SYNC INITIALIZATION\033[0m\n"
+    b"echo \033[35m==========================================================\033[0m\n"
+    b"echo.\n"
+    b"echo \033[90m[\033[36mINFO\033[90m]\033[97m Reading enterprise configuration from config.json...\033[0m\n"
+    b"echo \033[90m[\033[32mOK\033[90m]\033[97m Target Driver: JSON\033[0m\n"
+    b"echo.\n"
+    b"python main.py\n"
+    b"pause\n"
 )
 
 
@@ -83,7 +100,7 @@ def _build_zip(config: dict) -> bytes:
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("config.json", json.dumps(config, indent=2, default=str))
         zf.writestr("INSTALLATION_GUIDE.md", _AGENT_INSTALL_GUIDE)
-        zf.writestr("lumina-agent.exe", _AGENT_EXE_STUB)
+        zf.writestr("start-lumina.bat", _AGENT_BAT_STUB)
     return buf.getvalue()
 
 
@@ -158,11 +175,18 @@ class ErpIntegrationService:
             {"$set": {"key_hash": key_hash, "key_prefix": raw_key[:14] + "…", "last_used": now}},
         )
 
+        # Enterprise Core: Find the main system owner company ID
+        own_company = await self.db["companies"].find_one({"is_own_company": True})
+        if not own_company:
+            own_company = await self.db["companies"].find_one({}) # Fallback garantisi
+        own_company_id = str(own_company["_id"]) if own_company else ""
+
         config = {
             "agent_metadata": {
                 "integration_name": doc["name"],
                 "tracker_id": doc["tracker_id"],
-                "version": "1.0.4-enterprise",
+                "company_id": own_company_id,
+                "version": "1.0.5-enterprise-json",
                 "created_at": now.isoformat(),
                 "environment": "production"
             },
@@ -172,13 +196,13 @@ class ErpIntegrationService:
                 "timeout_seconds": 30
             },
             "erp_connection": {
-                "driver": "excel",  # options: "sap_hana", "logo_tiger", "mikro_v16", "excel"
+                "driver": "json",  # options: "sap_hana", "oracle_netsuite", "json", "excel"
                 "database_host": "192.168.1.100",
                 "database_port": 1433,
                 "database_name": "ERP_PROD_DB",
                 "database_user": "sa",
                 "database_password": "FILL_IN_YOUR_PASSWORD",
-                "local_file_path": "C:\\Lumina\\Agent\\data\\erp_export.xlsx"
+                "local_file_path": "./data/erp_export.json"
             },
             "sync_settings": {
                 "poll_interval_seconds": 3600,

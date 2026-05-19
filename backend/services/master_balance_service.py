@@ -146,13 +146,15 @@ class MasterBalanceService:
 
     async def get_statement_entries(self, counterparty_id: str) -> list[dict]:
         """
-        Return ledger entries that were ingested via the internal-statement upload
-        for the given counterparty, ordered newest-first.  Only rows whose source
-        field is "internal_statement" are included so portal uploads stay separate.
+        Return ledger entries that were ingested via internal uploads OR ERP Agent
+        for the given counterparty, ordered newest-first.
         """
         docs = []
         async for doc in self.ledgers.find(
-            {"counterparty_id": counterparty_id, "source": "internal_statement"},
+            {
+                "counterparty_id": counterparty_id, 
+                "source": {"$in": ["internal_statement", "json", "excel", "csv", "sap", "logo", "mikro"]}
+            },
             sort=[("created_at", -1)],
         ):
             doc["id"] = str(doc.pop("_id"))

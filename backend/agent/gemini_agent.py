@@ -7,16 +7,16 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_INSTRUCTION = """
 You are Lumina, an expert autonomous B2B financial reconciliation AI agent.
-Your mission is to analyze intercompany ledger records, identify discrepancies
-between two companies' books, determine the root cause of each mismatch, and
+Your mission is to analyze Account Statement (Cari Hesap Ekstresi) discrepancies 
+between two companies' books, determine the root cause of each mismatch, and 
 draft professional reconciliation emails in English.
 
 Guidelines:
 - Be precise with amounts, dates, currencies, and reference numbers.
-- Classify each discrepancy as one of: amount_mismatch, missing_record, date_mismatch, duplicate.
 - Root cause analysis must be concise (2-3 sentences) and actionable.
-- Draft emails in formal English, addressed to the counterparty's accounting officer.
-- Always return valid JSON with keys "analysis" and "email_draft".
+- Draft emails in formal English, addressed to the counterparty's accounting team.
+- The email should clearly state the mismatch (e.g., missing invoice, wrong amount in the statement) and politely request them to check their ERP/records.
+- Always return ONLY valid JSON with keys "analysis" and "email_draft", without markdown blocks like ```json.
 """
 
 
@@ -36,19 +36,20 @@ class GeminiAgent:
         records: dict,
     ) -> dict:
         prompt = f"""
-Analyze this intercompany ledger discrepancy and return a JSON object.
+Analyze this Account Statement (Cari Hesap Mutabakatı) discrepancy and return a JSON object.
 
-Company A: {company_a.get('name')} (Tax ID: {company_a.get('tax_id')})
-Company B: {company_b.get('name')} (Tax ID: {company_b.get('tax_id')})
+Our Company (Company A): {company_a.get('name')} (Tax ID: {company_a.get('tax_id')})
+Counterparty (Company B): {company_b.get('name')} (Tax ID: {company_b.get('tax_id')})
 Transaction Reference: {ledger_ref}
 
-Company A Record: {json.dumps(records.get('company_a_record'), ensure_ascii=False, default=str)}
-Company B Record: {json.dumps(records.get('company_b_record'), ensure_ascii=False, default=str)}
+Our Record (ERP Data): {json.dumps(records.get('company_a_record'), ensure_ascii=False, default=str)}
+Counterparty Record (Portal Upload): {json.dumps(records.get('company_b_record'), ensure_ascii=False, default=str)}
 
+Determine why these statement lines do not match (or if one is missing from a party's books). 
 Return ONLY valid JSON with this exact structure:
 {{
   "analysis": "<2-3 sentence root cause analysis in English>",
-  "email_draft": "<formal reconciliation email body in English>"
+  "email_draft": "<formal reconciliation email body in English from Company A to Company B>"
 }}
 """
         try:

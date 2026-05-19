@@ -1,0 +1,30 @@
+{
+  "agent_metadata": {
+    "integration_name": "test",
+    "tracker_id": "250b4f4a-9849-42d9-babc-ea90be8233d4",
+    "company_id": "",
+    "version": "1.0.4-enterprise",
+    "created_at": "2026-05-19T19:19:51.449936+00:00",
+    "environment": "production"
+  },
+  "lumina_cloud": {
+    "server_url": "http://localhost:8000",
+    "api_key": "lmn_Pm-JZ9r6zrz4Yd83HV1JafxVxVVtnzHmrjgOtIVDudE",
+    "timeout_seconds": 30
+  },
+  "erp_connection": {
+    "driver": "json",
+    "database_host": "192.168.1.100",
+    "database_port": 1433,
+    "database_name": "ERP_PROD_DB",
+    "database_user": "sa",
+    "database_password": "FILL_IN_YOUR_PASSWORD",
+    "local_file_path": "./data/erp_export.json"
+  },
+  "sync_settings": {
+    "poll_interval_seconds": 3600,
+    "batch_size": 5000,
+    "max_retries": 3,
+    "auto_update": true
+  }
+}

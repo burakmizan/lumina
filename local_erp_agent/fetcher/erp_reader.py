@@ -16,12 +16,13 @@ class ERPReader:
         self.source_type = source_type.lower()
         self.data_path = Path(data_path)
 
-    def read(self) -> List[dict]:
-        """Return raw ERP records as a list of dicts."""
+    def read(self):
+        """Return raw ERP payload (dict for JSON, list for legacy files)."""
         readers = {
             "excel": self._read_excel,
             "xlsx": self._read_excel,
             "csv": self._read_csv,
+            "json": self._read_json,
             "sap": self._read_sap,
             "logo": self._read_logo,
             "mikro": self._read_mikro,
@@ -38,6 +39,11 @@ class ERPReader:
     def _read_csv(self) -> List[dict]:
         df = pd.read_csv(self.data_path, dtype=str)
         return df.where(pd.notna(df), None).to_dict(orient="records")
+
+    def _read_json(self) -> dict:
+        import json
+        with open(self.data_path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     def _read_sap(self) -> List[dict]:
         # TODO Phase 1.5: SAP RFC connection or BAPI file export reader

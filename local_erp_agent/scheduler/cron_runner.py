@@ -22,24 +22,35 @@ COUNTERPARTY_ID = os.getenv("COUNTERPARTY_ID", "")
 
 
 async def sync_once():
-    """Execute one full ERP read → normalize → cloud push cycle."""
+    """Execute Enterprise Two-Step Sync: Master Data -> Transaction Data."""
     from fetcher.erp_reader import ERPReader
     from fetcher.data_normalizer import DataNormalizer
     from sync.cloud_sync import CloudSync
 
     logger.info(f"Sync cycle starting | source={ERP_SOURCE_TYPE} | path={ERP_DATA_PATH}")
 
-    raw_records = ERPReader(source_type=ERP_SOURCE_TYPE, data_path=ERP_DATA_PATH).read()
-    logger.info(f"Read {len(raw_records)} raw records from ERP.")
+    # 1. Read Raw Dual-Payload (Master + Transactions)
+    erp_data = ERPReader(source_type=ERP_SOURCE_TYPE, data_path=ERP_DATA_PATH).read()
+    
+    companies_raw = erp_data.get("business_partners", []) if isinstance(erp_data, dict) else []
+    transactions_raw = erp_data.get("transactions", erp_data) if isinstance(erp_data, dict) else erp_data
 
-    normalized = DataNormalizer(
+    cloud_client = CloudSync(api_url=ERP_SYNC_API_URL, api_key=ERP_SYNC_API_KEY)
+
+    # 2. Step One: Sync Master Data and get ID mapping
+    logger.info(f"Step 1: Syncing {len(companies_raw)} Counterparties (Master Data)...")
+    mapping = await cloud_client.push_companies(companies_raw)
+    logger.info(f"Received ID mapping for {len(mapping)} counterparties.")
+
+    # 3. Step Two: Normalize & Sync Transactions
+    normalized_ledgers = DataNormalizer(
         company_id=COMPANY_ID,
-        counterparty_id=COUNTERPARTY_ID,
         source=ERP_SOURCE_TYPE,
-    ).normalize(raw_records)
-    logger.info(f"Normalized {len(normalized)} records.")
-
-    await CloudSync(api_url=ERP_SYNC_API_URL, api_key=ERP_SYNC_API_KEY).push_ledgers(normalized)
+        counterparty_mapping=mapping
+    ).normalize(transactions_raw)
+    
+    logger.info(f"Step 2: Syncing {len(normalized_ledgers)} Ledger Records...")
+    await cloud_client.push_ledgers(normalized_ledgers)
 
 
 async def start_scheduler():

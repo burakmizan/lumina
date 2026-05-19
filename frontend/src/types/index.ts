@@ -1,3 +1,76 @@
+// ── Auth / RBAC ───────────────────────────────────────────────────────────────
+
+export type SystemRole = 'System Administrator' | 'Manager' | 'IT Specialist' | 'Staff'
+
+export interface User {
+  id: string
+  username: string
+  email: string
+  role: string
+  full_name?: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Role {
+  id: string
+  name: string
+  description?: string | null
+  permissions: Record<string, boolean>
+  is_system_role: boolean
+  created_at: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: string
+  user: User
+}
+
+// ── Company Settings ─────────────────────────────────────────────────────────
+
+export interface CompanyIdentity {
+  company_name: string
+  legal_country: string
+  identifier_type: string
+  identifier_value: string
+}
+
+export interface CompanyProfile {
+  logo_url?: string | null
+  industry?: string | null
+  company_size?: string | null
+}
+
+export interface FinancialSettings {
+  base_currency: string
+  fiscal_year_start: string
+}
+
+export interface ContactInfo {
+  contact_name: string
+  contact_email: string
+  contact_phone?: string | null
+}
+
+export interface CompanySettings {
+  id: string
+  identity: CompanyIdentity
+  profile: CompanyProfile
+  financial: FinancialSettings
+  contact: ContactInfo
+  onboarding_completed: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface OnboardingStatus {
+  onboarding_completed: boolean
+}
+
+// ── Companies ────────────────────────────────────────────────────────────────
+
 export interface Company {
   id: string
   name: string

@@ -13,7 +13,6 @@ import sys
 import json
 import asyncio
 import logging
-from scheduler.cron_runner import start_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +38,7 @@ def load_enterprise_config():
         os.environ["ERP_POLL_INTERVAL_SECONDS"] = str(config.get("sync_settings", {}).get("poll_interval_seconds", 3600))
         os.environ["ERP_SOURCE_TYPE"] = config.get("erp_connection", {}).get("driver", "excel")
         os.environ["ERP_DATA_PATH"] = config.get("erp_connection", {}).get("local_file_path", "./data/erp_export.xlsx")
+        os.environ["COMPANY_ID"] = config.get("agent_metadata", {}).get("company_id", "")
         
         integration_name = config.get("agent_metadata", {}).get("integration_name", "Unknown")
         logging.info(f"Enterprise configuration loaded successfully. Integration: {integration_name}")
@@ -50,7 +50,7 @@ def load_enterprise_config():
         sys.exit(1)
 
 if __name__ == "__main__":
-    # Önce JSON'ı oku ve sisteme yedir
     load_enterprise_config()
-    # Sonra scheduler'ı eski usül çalıştır, o değerleri env'den hazır bulacak!
+    # Config yüklendikten SONRA import ediyoruz ki doğru verileri okusun!
+    from scheduler.cron_runner import start_scheduler
     asyncio.run(start_scheduler())

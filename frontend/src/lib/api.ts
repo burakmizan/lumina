@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { CompanySettings, OnboardingStatus, TokenResponse, User, Role } from '@/types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -6,6 +7,36 @@ export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// Attach JWT from lumina_token cookie to every backend request
+api.interceptors.request.use(config => {
+  if (typeof document !== 'undefined') {
+    const raw = `; ${document.cookie}`
+    const parts = raw.split('; lumina_token=')
+    if (parts.length === 2) {
+      const token = parts.pop()?.split(';').shift()
+      if (token) config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  return config
+})
+
+// Auto-redirect to login on 401
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (
+      error.response?.status === 401 &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/login')
+    ) {
+      document.cookie = 'lumina_token=; max-age=0; path=/'
+      document.cookie = 'lumina_session=; max-age=0; path=/'
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  },
+)
 
 // ── Companies ────────────────────────────────────────────────────────────────
 export const getCompanies = () =>
@@ -203,3 +234,59 @@ export const deleteErpIntegration = (id: string) =>
 
 export const downloadAgentPackage = (id: string, filename: string) =>
   triggerFileDownload(`/api/v1/erp/${id}/download-agent`, filename)
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+export const backendLogin = (username: string, password: string): Promise<TokenResponse> =>
+  api.post('/api/v1/auth/login', { username, password }).then(r => r.data)
+
+export const getCurrentUser = (): Promise<User> =>
+  api.get('/api/v1/auth/me').then(r => r.data)
+
+// ── Company Settings ─────────────────────────────────────────────────────────
+
+export const getOnboardingStatus = (): Promise<OnboardingStatus> =>
+  api.get('/api/v1/settings/onboarding-status').then(r => r.data)
+
+export const getCompanySettings = (): Promise<CompanySettings> =>
+  api.get('/api/v1/settings/').then(r => r.data)
+
+export const createCompanySettings = (data: unknown): Promise<CompanySettings> =>
+  api.post('/api/v1/settings/', data).then(r => r.data)
+
+export const updateCompanySettings = (data: unknown): Promise<CompanySettings> =>
+  api.patch('/api/v1/settings/', data).then(r => r.data)
+
+export const uploadCompanyLogo = (file: File): Promise<{ logo_url: string }> => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post('/api/v1/settings/logo', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(r => r.data)
+}
+
+// ── User Management ───────────────────────────────────────────────────────────
+
+export const getUsers = (): Promise<User[]> =>
+  api.get('/api/v1/users/').then(r => r.data)
+
+export const createUser = (data: unknown): Promise<User> =>
+  api.post('/api/v1/users/', data).then(r => r.data)
+
+export const updateUser = (id: string, data: unknown): Promise<User> =>
+  api.patch(`/api/v1/users/${id}`, data).then(r => r.data)
+
+export const deleteUser = (id: string): Promise<void> =>
+  api.delete(`/api/v1/users/${id}`).then(r => r.data)
+
+export const getRoles = (): Promise<Role[]> =>
+  api.get('/api/v1/users/roles').then(r => r.data)
+
+export const createRole = (data: unknown): Promise<Role> =>
+  api.post('/api/v1/users/roles', data).then(r => r.data)
+
+export const updateRole = (id: string, data: unknown): Promise<Role> =>
+  api.patch(`/api/v1/users/roles/${id}`, data).then(r => r.data)
+
+export const deleteRole = (id: string): Promise<void> =>
+  api.delete(`/api/v1/users/roles/${id}`).then(r => r.data)
