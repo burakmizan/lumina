@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { QueryProvider } from '@/components/layout/QueryProvider'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'Lumina — B2B Financial Reconciliation AI',
@@ -9,8 +12,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr">
-      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+    <html lang="tr" className={inter.variable}>
+      <body className="min-h-screen bg-surface-primary text-white antialiased">
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
