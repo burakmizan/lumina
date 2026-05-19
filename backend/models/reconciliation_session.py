@@ -19,6 +19,7 @@ class ReconciliationSessionResponse(BaseModel):
     uploaded_at: Optional[datetime] = None
     parsed_ledger_count: int = 0
     filename: Optional[str] = None
+    storage_id: Optional[str] = None
 
     model_config = {"from_attributes": True, "populate_by_name": True}
 

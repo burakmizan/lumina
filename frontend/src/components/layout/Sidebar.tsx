@@ -2,13 +2,14 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { LayoutDashboard, AlertTriangle, LogOut, Zap, Building2, Users } from 'lucide-react'
+import { LayoutDashboard, AlertTriangle, LogOut, Zap, Building2, Users, ListChecks } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { href: '/dashboard',       label: 'Dashboard',      Icon: LayoutDashboard },
-  { href: '/counterparties',  label: 'Counterparties', Icon: Users },
-  { href: '/discrepancies',   label: 'Discrepancies',  Icon: AlertTriangle },
+  { href: '/dashboard',        label: 'Dashboard',           Icon: LayoutDashboard },
+  { href: '/counterparties',   label: 'Counterparties',      Icon: Users },
+  { href: '/reconciliations',  label: 'Reconciliation List', Icon: ListChecks },
+  { href: '/discrepancies',    label: 'Discrepancies',       Icon: AlertTriangle },
 ]
 
 export function Sidebar() {

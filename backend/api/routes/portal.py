@@ -4,9 +4,11 @@ from datetime import datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from api.dependencies import get_db
+from core.config import settings
 from models.reconciliation_session import (
     ReconciliationSessionCreate,
     ReconciliationSessionResponse,
@@ -16,7 +18,7 @@ from models.reconciliation_session import (
 from services.reconciliation_session_service import ReconciliationSessionService
 from services.magic_link_email_service import MagicLinkEmailService
 from services.company_service import CompanyService
-from core.config import settings
+from services.file_storage_service import FileStorageService
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +32,6 @@ async def start_reconciliation_session(
     payload: ReconciliationSessionCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """
-    Initiates a reconciliation session: generates a cryptographically secure
-    time-limited token, persists the session to MongoDB, and dispatches the
-    magic-link invitation email to the counterparty's accounting officer.
-    """
     company_svc = CompanyService(db)
 
     initiating = await company_svc.get_by_id(payload.initiating_company_id)
@@ -62,10 +59,6 @@ async def start_reconciliation_session(
 
 @router.get("/sessions/validate/{token}", response_model=TokenValidationResponse)
 async def validate_portal_token(token: str, db: AsyncIOMotorDatabase = Depends(get_db)):
-    """
-    Public endpoint consumed by the counterparty portal to validate a magic-link
-    token before displaying the file upload interface.
-    """
     session_svc = ReconciliationSessionService(db)
     session = await session_svc.validate_token(token)
 
@@ -92,12 +85,79 @@ async def list_sessions_by_counterparty(
     counterparty_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
-    """
-    Returns all reconciliation sessions where the given company is the counterparty,
-    ordered by most recent first. Used by the Counterparties dashboard Docs view.
-    """
     session_svc = ReconciliationSessionService(db)
     return await session_svc.get_by_counterparty(counterparty_id)
+
+
+@router.get("/sessions/{session_id}/download")
+async def download_session_file(
+    session_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Download the raw file that was uploaded during a portal session."""
+    from bson import ObjectId
+    collection = db["reconciliation_sessions"]
+    if not ObjectId.is_valid(session_id):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    session = await collection.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    storage_id = session.get("storage_id")
+    if not storage_id:
+        raise HTTPException(status_code=404, detail="No file stored for this session.")
+
+    file_svc = FileStorageService(db, settings.UPLOAD_DIR)
+    result = await file_svc.get_file(storage_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="File not found on server.")
+
+    filename, file_bytes = result
+    ext = os.path.splitext(filename)[1].lower()
+    content_type_map = {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls":  "application/vnd.ms-excel",
+        ".csv":  "text/csv",
+        ".pdf":  "application/pdf",
+    }
+    content_type = content_type_map.get(ext, "application/octet-stream")
+
+    return StreamingResponse(
+        iter([file_bytes]),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.delete("/sessions/{session_id}/file", status_code=200)
+async def delete_session_file(
+    session_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """
+    Permanently delete the stored file for a session.
+    Clears the storage_id and filename from the session document.
+    The session itself and its parsed ledger entries are preserved.
+    """
+    from bson import ObjectId
+    collection = db["reconciliation_sessions"]
+    if not ObjectId.is_valid(session_id):
+        raise HTTPException(status_code=404, detail="Session not found.")
+    session = await collection.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    storage_id = session.get("storage_id")
+    if not storage_id:
+        raise HTTPException(status_code=404, detail="No file stored for this session.")
+
+    file_svc = FileStorageService(db, settings.UPLOAD_DIR)
+    await file_svc.delete_file(storage_id)
+
+    session_svc = ReconciliationSessionService(db)
+    await session_svc.clear_file_reference(session_id)
+
+    return {"message": "File deleted successfully."}
 
 
 @router.post("/upload", response_model=PortalUploadResponse)
@@ -109,9 +169,10 @@ async def upload_counterparty_ledger(
     """
     Receives the counterparty's ledger file (Excel / CSV / PDF).
     1. Validates the session token.
-    2. Parses the file using GeminiParser (arbitrary format normalisation).
-    3. Upserts the normalised records into MongoDB as Company B ledger data.
-    4. Marks the session as processing-ready for the reconciliation engine.
+    2. Persists the raw file for later download.
+    3. Parses the file using GeminiParser (arbitrary format normalisation).
+    4. Upserts normalised records into MongoDB as Company B ledger data.
+    5. Marks the session as processing-ready.
     """
     session_svc = ReconciliationSessionService(db)
     session = await session_svc.validate_token(token)
@@ -129,6 +190,16 @@ async def upload_counterparty_ledger(
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+
+    # Persist raw file immediately (before parsing, so it's recoverable on parse error)
+    file_svc  = FileStorageService(db, settings.UPLOAD_DIR)
+    storage_id = await file_svc.save_file(
+        file_bytes,
+        filename,
+        source="portal",
+        counterparty_id=session["counterparty_id"],
+        metadata={"session_id": session["id"]},
+    )
 
     from agent.gemini_parser import GeminiParser
     from services.ledger_service import LedgerService
@@ -173,7 +244,9 @@ async def upload_counterparty_ledger(
         except Exception as e:
             logger.warning(f"[Portal/Upload] Skipping malformed record: {e} — {rec}")
 
-    await session_svc.mark_upload_complete(session["id"], len(created), filename=filename)
+    await session_svc.mark_upload_complete(
+        session["id"], len(created), filename=filename, storage_id=storage_id
+    )
 
     logger.info(
         f"[Portal/Upload] Session {session['id']}: {len(created)}/{len(parsed_records)} records saved"

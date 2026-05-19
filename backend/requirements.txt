@@ -40,3 +40,6 @@ aiofiles==24.1.0
 
 # Async compatibility — thread-pool safe for Windows (avoids TCP reset errors)
 anyio[trio]==4.6.2
+
+# bcrypt 4.x
+bcrypt<4.0.0

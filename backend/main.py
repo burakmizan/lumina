@@ -1,15 +1,17 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
 from core.database import connect_to_mongo, close_mongo_connection
-from api.routes import companies, ledgers, discrepancies, reconciliation, portal
+from api.routes import companies, ledgers, discrepancies, reconciliation, portal, reconciliations, erp_integration
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_to_mongo()
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     yield
     await close_mongo_connection()
 
@@ -34,6 +36,8 @@ app.include_router(ledgers.router, prefix="/api/v1/ledgers", tags=["Ledgers"])
 app.include_router(discrepancies.router, prefix="/api/v1/discrepancies", tags=["Discrepancies"])
 app.include_router(reconciliation.router, prefix="/api/v1/reconciliation", tags=["Reconciliation"])
 app.include_router(portal.router, prefix="/api/v1/portal", tags=["Portal"])
+app.include_router(reconciliations.router, prefix="/api/v1/reconciliations", tags=["Reconciliations"])
+app.include_router(erp_integration.router, prefix="/api/v1/erp", tags=["ERP Integration"])
 
 
 @app.get("/health", tags=["Health"])

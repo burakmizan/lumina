@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
     FRONTEND_BASE_URL: str = "http://localhost:3000"
 
+    # File storage (raw uploaded files persisted to disk for download capability)
+    UPLOAD_DIR: str = "./uploaded_files"
+
     model_config = {"env_file": ".env", "case_sensitive": True, "extra": "ignore"}
 
 

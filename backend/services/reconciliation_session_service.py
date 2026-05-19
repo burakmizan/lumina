@@ -45,7 +45,11 @@ class ReconciliationSessionService:
         return doc
 
     async def mark_upload_complete(
-        self, session_id: str, parsed_count: int, filename: str | None = None
+        self,
+        session_id: str,
+        parsed_count: int,
+        filename: str | None = None,
+        storage_id: str | None = None,
     ) -> None:
         update_data: dict = {
             "status": "processing",
@@ -54,9 +58,20 @@ class ReconciliationSessionService:
         }
         if filename:
             update_data["filename"] = filename
+        if storage_id:
+            update_data["storage_id"] = storage_id
         await self.collection.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": update_data},
+        )
+
+    async def clear_file_reference(self, session_id: str) -> None:
+        """Remove the file storage reference from a session (after file deletion)."""
+        if not ObjectId.is_valid(session_id):
+            return
+        await self.collection.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$unset": {"storage_id": "", "filename": ""}},
         )
 
     async def get_by_counterparty(self, counterparty_id: str) -> list[dict]:

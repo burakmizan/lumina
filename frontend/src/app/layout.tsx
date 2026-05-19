@@ -6,14 +6,14 @@ import { QueryProvider } from '@/components/layout/QueryProvider'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Lumina — B2B Financial Reconciliation AI',
+  title: 'Lumina - AI Reconciliation Agent',
   description: 'Autonomous B2B financial reconciliation agent powered by Google Gemini and MongoDB',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tr" className={inter.variable}>
-      <body className="min-h-screen bg-surface-primary text-white antialiased">
+      <body className="min-h-screen bg-surface-primary text-gray-900 antialiased">
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
