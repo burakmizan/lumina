@@ -1,16 +1,17 @@
 """
-Phase 1 Mock Data Seeder
-========================
-Seeds MongoDB with realistic, intentionally flawed intercompany ledger data
-to test the Lumina reconciliation agent end-to-end without a live ERP.
+Lumina Test Data Seeder
+=======================
+Mevcut şirket yapısını bozmadan (TEST Company + Acme Corp International)
+sadece ledger verisi ekler. İki tarafın statement'ları arasında kasıtlı
+uyuşmazlıklar oluşturur — reconciliation agent'ı test etmek için.
 
-Expected discrepancies after seeding:
-  REF-002 — amount_mismatch  (A: 80,000 TL vs B: 75,000 TL)
-  REF-003 — missing_record   (only in Company A; absent from B)
-  REF-004 — date_mismatch    (same amount, different booking dates)
+Beklenen uyuşmazlıklar:
+  INV-2026-001 — amount_mismatch  (Biz: $50,000 / Onlar: $47,500)
+  PAY-2026-003 — missing_record   (Sadece bizde var, karşı tarafta yok)
+  INV-2026-004 — date_mismatch    (Aynı tutar, farklı tarihler)
 
 Usage:
-    cd lumina
+    cd lumina/backend
     python scripts/seed_mock_data.py
 """
 import asyncio
@@ -20,95 +21,177 @@ from datetime import datetime, timedelta
 import motor.motor_asyncio
 from dotenv import load_dotenv
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(Path(__file__).parent.parent / "backend" / ".env")
 
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_URI     = os.getenv("MONGODB_URI",     "mongodb://localhost:27017")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "lumina_db")
 
-COMPANY_A_DOC = {
-    "name": "Alfa Ticaret A.Ş.",
-    "tax_id": "1234567890",
-    "reconciliation_email": "muhasebe@alfa.com.tr",
-    "contact_name": "Ahmet Yılmaz",
-    "created_at": datetime.utcnow(),
-    "updated_at": datetime.utcnow(),
-}
 
-COMPANY_B_DOC = {
-    "name": "Beta Lojistik Ltd. Şti.",
-    "tax_id": "9876543210",
-    "reconciliation_email": "finans@beta.com.tr",
-    "contact_name": "Fatma Kaya",
-    "created_at": datetime.utcnow(),
-    "updated_at": datetime.utcnow(),
-}
-
-
-def ledger(company_id, counterparty_id, ref, amount, tx_type, date, desc=""):
+def make_ledger(company_id, counterparty_id, ref, amount, tx_type, date, desc, source):
+    now = datetime.utcnow()
     return {
-        "company_id": company_id,
-        "counterparty_id": counterparty_id,
-        "transaction_ref": ref,
+        "company_id":       company_id,
+        "counterparty_id":  counterparty_id,
+        "transaction_ref":  ref,
         "transaction_type": tx_type,
-        "amount": amount,
-        "currency": "TRY",
+        "amount":           amount,
+        "currency":         "USD",
         "transaction_date": date,
-        "due_date": date + timedelta(days=30),
-        "description": desc,
-        "status": "pending",
-        "source": "seed_script",
-        "raw_data": None,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
+        "due_date":         date + timedelta(days=30),
+        "description":      desc,
+        "status":           "pending",
+        "source":           source,
+        "raw_data":         None,
+        "created_at":       now,
+        "updated_at":       now,
     }
 
 
 async def seed():
     client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
-    db = client[MONGODB_DB_NAME]
+    db     = client[MONGODB_DB_NAME]
 
-    await db.companies.drop()
-    await db.ledgers.drop()
-    await db.discrepancies.drop()
-    print("Dropped existing collections.")
+    # ── 1. Kendi firmanı bul veya oluştur ───────────────────────────────────
+    own = await db.companies.find_one({"is_own_company": True})
+    if not own:
+        # company_settings'den al, companies'e upsert et
+        cs = await db.company_settings.find_one({})
+        if not cs:
+            print("HATA: company_settings bulunamadı. Onboarding tamamlandı mı?")
+            client.close()
+            return
+        identity = cs.get("identity", {})
+        contact  = cs.get("contact",  {})
+        now = datetime.utcnow()
+        own_doc = {
+            "name":                 identity.get("company_name", "Own Company"),
+            "tax_id":               identity.get("identifier_value", ""),
+            "reconciliation_email": contact.get("contact_email", ""),
+            "contact_name":         contact.get("contact_name", ""),
+            "is_own_company":       True,
+            "status":               "active",
+            "phones":               [],
+            "emails":               [],
+            "created_at":           now,
+            "updated_at":           now,
+        }
+        res  = await db.companies.insert_one(own_doc)
+        own_id   = str(res.inserted_id)
+        own_name = own_doc["name"]
+        print(f"Kendi firma companies'e eklendi: {own_name} → {own_id}")
+    else:
+        own_id   = str(own["_id"])
+        own_name = own.get("name", "Kendi Firma")
+        print(f"Kendi firma bulundu: {own_name} → {own_id}")
 
-    res_a = await db.companies.insert_one(COMPANY_A_DOC)
-    res_b = await db.companies.insert_one(COMPANY_B_DOC)
-    a_id, b_id = str(res_a.inserted_id), str(res_b.inserted_id)
-    print(f"Company A: {COMPANY_A_DOC['name']} → {a_id}")
-    print(f"Company B: {COMPANY_B_DOC['name']} → {b_id}")
+    # ── 2. Karşı tarafı bul (is_own_company=False, ilk aktif) ───────────────
+    cp = await db.companies.find_one({"is_own_company": {"$ne": True}})
+    if not cp:
+        print("HATA: Counterparty bulunamadı.")
+        print("Counterparties sayfasından en az bir karşı taraf ekle.")
+        client.close()
+        return
 
-    base = datetime(2024, 5, 1)
-    records = [
-        # REF-001 — matching invoice, no discrepancy
-        ledger(a_id, b_id, "REF-001", 50_000.00, "invoice", base, "Danışmanlık hizmet faturası"),
-        ledger(b_id, a_id, "REF-001", 50_000.00, "invoice", base, "Danışmanlık hizmet faturası"),
+    cp_id   = str(cp["_id"])
+    cp_name = cp.get("name", "Karşı Taraf")
+    print(f"Karşı taraf: {cp_name} → {cp_id}")
 
-        # REF-002 — AMOUNT MISMATCH: A says 80k, B says 75k
-        ledger(a_id, b_id, "REF-002", 80_000.00, "invoice", base + timedelta(5), "Yazılım lisans faturası"),
-        ledger(b_id, a_id, "REF-002", 75_000.00, "invoice", base + timedelta(5), "Yazılım lisans faturası"),
+    # ── 3. Mevcut test ledger'larını temizle ─────────────────────────────────
+    del_a = await db.ledgers.delete_many({
+        "company_id": own_id, "counterparty_id": cp_id
+    })
+    del_b = await db.ledgers.delete_many({
+        "company_id": cp_id, "counterparty_id": own_id
+    })
+    await db.discrepancies.delete_many({
+        "$or": [
+            {"company_a_id": own_id, "company_b_id": cp_id},
+            {"company_a_id": cp_id,  "company_b_id": own_id},
+        ]
+    })
+    print(f"Temizlendi: {del_a.deleted_count + del_b.deleted_count} ledger, discrepancies silindi.")
 
-        # REF-003 — MISSING RECORD: only in Company A
-        ledger(a_id, b_id, "REF-003", 12_500.00, "payment", base + timedelta(10), "Kısmi ödeme"),
+    base = datetime(2026, 4, 1)
 
-        # REF-004 — DATE MISMATCH: same amount, different booking dates
-        ledger(a_id, b_id, "REF-004", 35_000.00, "invoice", base + timedelta(14), "Lojistik hizmet faturası"),
-        ledger(b_id, a_id, "REF-004", 35_000.00, "invoice", base + timedelta(20), "Lojistik hizmet faturası"),
+    # ── 4. BİZİM STATEMENT (internal_statement) ──────────────────────────────
+    our_ledgers = [
+        # INV-2026-001 — AMOUNT MISMATCH: Biz $50k diyoruz
+        make_ledger(own_id, cp_id, "INV-2026-001", 50_000.00, "invoice",
+                    base, "Enterprise Software Licensing Q1", "internal_statement"),
 
-        # REF-005 — matching payment, no discrepancy
-        ledger(a_id, b_id, "REF-005", 50_000.00, "payment", base + timedelta(30), "REF-001 ödemesi"),
-        ledger(b_id, a_id, "REF-005", 50_000.00, "payment", base + timedelta(30), "REF-001 ödemesi"),
+        # INV-2026-002 — EŞLEŞİYOR (uyuşmazlık yok)
+        make_ledger(own_id, cp_id, "INV-2026-002", 25_000.00, "invoice",
+                    base + timedelta(5), "Consulting Services Feb", "internal_statement"),
+
+        # PAY-2026-003 — MISSING RECORD: Sadece bizde var
+        make_ledger(own_id, cp_id, "PAY-2026-003", 12_500.00, "payment",
+                    base + timedelta(10), "Partial payment ref INV-2025-088", "internal_statement"),
+
+        # INV-2026-004 — DATE MISMATCH: Biz 1 Nisan diyoruz
+        make_ledger(own_id, cp_id, "INV-2026-004", 35_000.00, "invoice",
+                    base + timedelta(14), "Infrastructure Services Q1", "internal_statement"),
+
+        # PAY-2026-005 — EŞLEŞİYOR
+        make_ledger(own_id, cp_id, "PAY-2026-005", 50_000.00, "payment",
+                    base + timedelta(30), "Payment for INV-2026-001", "internal_statement"),
     ]
 
-    result = await db.ledgers.insert_many(records)
-    print(f"\nInserted {len(result.inserted_ids)} ledger records.")
-    print("\n── Seed complete ───────────────────────────────────────────")
-    print(f"  COMPANY_A_ID = {a_id}")
-    print(f"  COMPANY_B_ID = {b_id}")
-    print("\nExpected discrepancies after running reconciliation agent:")
-    print("  REF-002  amount_mismatch   (80,000 vs 75,000 TL)")
-    print("  REF-003  missing_record    (Company B has no record)")
-    print("  REF-004  date_mismatch     (1 May+14d vs 1 May+20d)")
+    # ── 5. KARŞI TARAFIN STATEMENT'I (portal upload simülasyonu) ─────────────
+    their_ledgers = [
+        # INV-2026-001 — AMOUNT MISMATCH: Onlar $47,500 diyor
+        make_ledger(cp_id, own_id, "INV-2026-001", 47_500.00, "invoice",
+                    base, "Enterprise Software Licensing Q1", "portal:seed"),
+
+        # INV-2026-002 — EŞLEŞİYOR
+        make_ledger(cp_id, own_id, "INV-2026-002", 25_000.00, "invoice",
+                    base + timedelta(5), "Consulting Services Feb", "portal:seed"),
+
+        # PAY-2026-003 — YOK (missing record)
+
+        # INV-2026-004 — DATE MISMATCH: Onlar 8 Nisan diyor
+        make_ledger(cp_id, own_id, "INV-2026-004", 35_000.00, "invoice",
+                    base + timedelta(21), "Infrastructure Services Q1", "portal:seed"),
+
+        # PAY-2026-005 — EŞLEŞİYOR
+        make_ledger(cp_id, own_id, "PAY-2026-005", 50_000.00, "payment",
+                    base + timedelta(30), "Payment for INV-2026-001", "portal:seed"),
+    ]
+
+    all_records = our_ledgers + their_ledgers
+    result = await db.ledgers.insert_many(all_records)
+    print(f"\n{len(result.inserted_ids)} ledger kaydı eklendi.")
+
+    # ── 6. Master balance kaydını güncelle ───────────────────────────────────
+    now = datetime.utcnow()
+    cp_doc = await db.companies.find_one({"_id": __import__("bson").ObjectId(cp_id)})
+    cp_name = cp_doc.get("name", "") if cp_doc else ""
+    await db.master_balances.update_one(
+        {"counterparty_id": cp_id},
+        {"$set": {
+            "company_id":            own_id,
+            "counterparty_id":       cp_id,
+            "company_name":          cp_name,
+            "balance":               0.0,
+            "currency":              "USD",
+            "reconciliation_status": "ready_for_external",
+            "updated_at":            now,
+        }},
+        upsert=False,
+    )
+    print("Master balance kaydı güncellendi (mevcut kayıt korundu).")
+    print("Master balance kaydı güncellendi.")
+
+    print("\n── Seed tamamlandı ─────────────────────────────────────────────")
+    print(f"  OWN_COMPANY_ID   = {own_id}")
+    print(f"  COUNTERPARTY_ID  = {cp_id}")
+    print("\nBeklenen uyuşmazlıklar:")
+    print("  INV-2026-001  amount_mismatch  ($50,000 vs $47,500)")
+    print("  PAY-2026-003  missing_record   (karşı tarafta kayıt yok)")
+    print("  INV-2026-004  date_mismatch    (14 gün fark)")
+    print(f"\nReconciliation tetiklemek için:")
+    print(f'  POST /api/v1/reconciliation/run?company_a_id={own_id}&company_b_id={cp_id}')
+
     client.close()
 
 

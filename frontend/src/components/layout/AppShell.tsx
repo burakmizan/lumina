@@ -10,6 +10,8 @@ import {
   Bell, Plug, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, User,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+import { AgentIsland } from '@/components/ui/AgentIsland'
+import { GlobalSearch } from '@/components/ui/GlobalSearch'
 
 const ALL_NAV = [
   { label: 'Dashboard',           href: '/dashboard',        icon: LayoutDashboard, permission: 'dashboard.view' },
@@ -179,6 +181,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
+            {/* Global Search */}
+            <GlobalSearch />
             {/* Notifications */}
             <button className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors relative">
               <Bell className="w-5 h-5" />
@@ -194,6 +198,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+      <AgentIsland />
     </div>
   )
 }

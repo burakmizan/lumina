@@ -1,45 +1,65 @@
 """
-MongoDB MCP Client (Phase 2)
-============================
-Connects to the MongoDB Atlas MCP Server so the Gemini agent can query
-the database directly via structured tool calls instead of raw pymongo.
-
-Docs: https://www.mongodb.com/docs/atlas/ai/mcp-server/
-MCP SDK: https://github.com/modelcontextprotocol/python-sdk
+MongoDB MCP Client — In-Process Mode
+======================================
+Windows'ta subprocess stdio deadlock yaşandığı için mcp_server.py'ın
+tool handler'larını doğrudan çağırır. MCP tool interface korunur.
 """
+import json
 import logging
+from typing import Any
+
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class MCPMongoClient:
-    """
-    Wraps the MongoDB MCP server connection for use by the reconciliation engine.
-    Phase 2 implementation: replaces direct motor calls with MCP tool calls,
-    letting Gemini reason over live database state via its tool-use interface.
-    """
+    """In-process MCP client — tool calls via mcp_server handler."""
 
     def __init__(self):
-        self.mongodb_uri = settings.MONGODB_URI
         self.db_name = settings.MONGODB_DB_NAME
-        self._session = None
 
-    async def connect(self):
-        """Initialize the MCP session with the MongoDB server."""
-        # TODO Phase 2: Initialize mcp.ClientSession pointed at MongoDB MCP server
-        logger.info("[MCP] MongoDB MCP client connection — Phase 2 implementation pending.")
+    async def __aenter__(self):
+        return self
 
-    async def disconnect(self):
-        if self._session:
-            await self._session.close()
+    async def __aexit__(self, *args):
+        pass
 
-    async def query_collection(self, collection: str, query: dict) -> list:
-        """Route a MongoDB query through the MCP tool interface."""
-        # TODO Phase 2: Use mcp session.call_tool("find", ...)
-        raise NotImplementedError("MCP query routing implemented in Phase 2.")
+    async def _call_tool(self, tool_name: str, arguments: dict) -> Any:
+        from agent import mcp_server
+        logger.info(f"[MCP] tool_call → {tool_name}  col={arguments.get('collection', '')}")
+        content_list = await mcp_server.call_tool(tool_name, arguments)
+        if content_list:
+            raw = getattr(content_list[0], "text", "[]")
+            try:
+                return json.loads(raw)
+            except Exception:
+                return []
+        return []
 
     async def get_ledgers_for_pair(self, company_a_id: str, company_b_id: str) -> dict:
-        """Fetch all ledger records for a counterparty pair — used by the reconciliation engine."""
-        # TODO Phase 2: Replace with MCP tool calls so Gemini can introspect the query
-        return {"company_a_ledgers": [], "company_b_ledgers": []}
+        logger.info(f"[MCP] Fetching ledger pair: {company_a_id} ↔ {company_b_id}")
+
+        a_ledgers = await self._call_tool("find", {
+            "collection": "ledgers",
+            "filter":     {"company_id": company_a_id, "counterparty_id": company_b_id},
+            "limit":      500,
+        })
+        b_ledgers = await self._call_tool("find", {
+            "collection": "ledgers",
+            "filter":     {"company_id": company_b_id, "counterparty_id": company_a_id},
+            "limit":      500,
+        })
+
+        if not isinstance(a_ledgers, list): a_ledgers = []
+        if not isinstance(b_ledgers, list): b_ledgers = []
+
+        logger.info(f"[MCP] ✓ A={len(a_ledgers)} B={len(b_ledgers)} records")
+        return {"company_a_ledgers": a_ledgers, "company_b_ledgers": b_ledgers}
+
+    async def aggregate(self, collection: str, pipeline: list) -> list:
+        result = await self._call_tool("aggregate", {
+            "collection": collection,
+            "pipeline":   pipeline,
+        })
+        return result if isinstance(result, list) else []

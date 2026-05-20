@@ -1,3 +1,7 @@
+import sys
+import asyncio
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -8,7 +12,7 @@ from core.config import settings
 from core.database import connect_to_mongo, close_mongo_connection
 from api.routes import (
     companies, ledgers, discrepancies, reconciliation,
-    portal, reconciliations, erp_integration,
+    portal, reconciliations, erp_integration, search,
 )
 from api.routes import auth as auth_routes
 from api.routes import settings as settings_routes
@@ -56,6 +60,7 @@ app.include_router(reconciliation.router,    prefix="/api/v1/reconciliation", ta
 app.include_router(portal.router,            prefix="/api/v1/portal",     tags=["Portal"])
 app.include_router(reconciliations.router,   prefix="/api/v1/reconciliations", tags=["Reconciliations"])
 app.include_router(erp_integration.router,   prefix="/api/v1/erp",        tags=["ERP Integration"])
+app.include_router(search.router,            prefix="/api/v1/search",     tags=["Search"])
 
 
 @app.get("/health", tags=["Health"])

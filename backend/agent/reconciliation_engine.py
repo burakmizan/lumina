@@ -3,6 +3,7 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from agent.gemini_agent import GeminiAgent
+from agent.mcp_client import MCPMongoClient
 from services.ledger_service import LedgerService
 from services.discrepancy_service import DiscrepancyService
 from services.company_service import CompanyService
@@ -27,22 +28,47 @@ class ReconciliationEngine:
         self.disc_svc = DiscrepancyService(db)
         self.company_svc = CompanyService(db)
 
-    async def run(self, company_a_id: str, company_b_id: str) -> str:
-        run_id = str(uuid.uuid4())
+    async def run(self, company_a_id: str, company_b_id: str, run_id: str = None) -> str:
+        if not run_id:
+            run_id = str(uuid.uuid4())
         logger.info(f"[Run {run_id}] Starting reconciliation: {company_a_id} ↔ {company_b_id}")
+
+        from datetime import datetime
+        await self.db["agent_runs"].insert_one({
+            "_id":            run_id,
+            "company_a_id":   company_a_id,
+            "company_b_id":   company_b_id,
+            "status":         "running",
+            "discrepancies_found": 0,
+            "started_at":     datetime.utcnow(),
+            "completed_at":   None,
+            "error":          None,
+        })
 
         company_a = await self.company_svc.get_by_id(company_a_id)
         company_b = await self.company_svc.get_by_id(company_b_id)
         if not company_a or not company_b:
             logger.error(f"[Run {run_id}] One or both companies not found.")
+            await self.db["agent_runs"].update_one(
+                {"_id": run_id},
+                {"$set": {"status": "failed", "error": "companies_not_found", "completed_at": datetime.utcnow()}},
+            )
             return run_id
 
-        # Enterprise Tier-1: Sadece bu iki firma arasındaki cari hesap hareketlerini filtrele
-        all_a = await self.ledger_svc.get_all(company_id=company_a_id)
-        all_b = await self.ledger_svc.get_all(company_id=company_b_id)
-        
-        ledgers_a = [l for l in all_a if str(l.get("counterparty_id")) == str(company_b_id)]
-        ledgers_b = [l for l in all_b if str(l.get("counterparty_id")) == str(company_a_id)]
+        # MCP Layer: Ledger verilerini MongoDB Atlas MCP Server üzerinden çek.
+        # Bu sayede Gemini agent her DB sorgusunu tool call olarak görür.
+        try:
+            async with MCPMongoClient() as mcp:
+                pair = await mcp.get_ledgers_for_pair(company_a_id, company_b_id)
+            ledgers_a = pair["company_a_ledgers"]
+            ledgers_b = pair["company_b_ledgers"]
+            logger.info(f"[Run {run_id}] MCP ledger fetch: A={len(ledgers_a)}, B={len(ledgers_b)}")
+        except Exception as mcp_err:
+            logger.warning(f"[Run {run_id}] MCP unavailable ({type(mcp_err).__name__}: {mcp_err}), falling back to motor.", exc_info=True)
+            all_a = await self.ledger_svc.get_all(company_id=company_a_id)
+            all_b = await self.ledger_svc.get_all(company_id=company_b_id)
+            ledgers_a = [l for l in all_a if str(l.get("counterparty_id")) == str(company_b_id)]
+            ledgers_b = [l for l in all_b if str(l.get("counterparty_id")) == str(company_a_id)]
 
         map_a = {l["transaction_ref"]: l for l in ledgers_a}
         map_b = {l["transaction_ref"]: l for l in ledgers_b}
@@ -83,8 +109,46 @@ class ReconciliationEngine:
             )
             found += 1
 
+        from datetime import datetime
+        await self.db["agent_runs"].update_one(
+            {"_id": run_id},
+            {"$set": {
+                "status":              "completed",
+                "discrepancies_found": found,
+                "completed_at":        datetime.utcnow(),
+            }},
+        )
+        # Generate embeddings for vector search (non-blocking)
+        await self._generate_embeddings(run_id)
+        await self._generate_embeddings(run_id)
         logger.info(f"[Run {run_id}] Reconciliation complete — {found} discrepancies detected.")
         return run_id
+
+    async def _generate_embeddings(self, run_id: str):
+        try:
+            import google.generativeai as genai
+            from core.config import settings
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            async for doc in self.db["discrepancies"].find(
+                {"agent_run_id": run_id, "embedding": {"$exists": False}}
+            ):
+                text = " ".join(filter(None, [
+                    doc.get("ledger_ref", ""),
+                    doc.get("discrepancy_type", ""),
+                    doc.get("ai_analysis", ""),
+                ]))
+                result = genai.embed_content(
+                    model="models/text-embedding-004",
+                    content=text,
+                    task_type="retrieval_document",
+                )
+                await self.db["discrepancies"].update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"embedding": result["embedding"]}},
+                )
+            logger.info(f"[Run {run_id}] Embeddings generated for vector search.")
+        except Exception as e:
+            logger.warning(f"[Run {run_id}] Embedding generation skipped: {e}")
 
     def _classify(self, rec_a: dict, rec_b: dict) -> str:
         if not rec_a:

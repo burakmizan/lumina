@@ -1,15 +1,18 @@
 'use client'
+import { fireAgentIsland } from '@/components/ui/AgentIsland'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, X, FileSpreadsheet, CheckCircle2, AlertCircle,
   Loader2, ChevronRight, FileUp, Eye, Mail, ExternalLink,
   Trash2, Download, FolderOpen, FileText, MoreHorizontal,
-  Archive, Users, FileDown,
+  Archive, Users, FileDown, Zap
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import {
   getMasterBalances,
+  getCompanies,
+  triggerReconciliation,
   importMasterBalances,
   importStatementOfAccount,
   uploadInternalStatement,
@@ -873,6 +876,7 @@ export default function ReconciliationsPage() {
   const [sendRecord,     setSendRecord]     = useState<MasterBalance | null>(null)
   const [docsRecord,     setDocsRecord]     = useState<MasterBalance | null>(null)
   const [deleteTarget,   setDeleteTarget]   = useState<MasterBalance | null>(null)
+  const [runningId,      setRunningId]      = useState<string | null>(null)
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -888,6 +892,12 @@ export default function ReconciliationsPage() {
     queryFn: getMasterBalances,
     refetchInterval: 12_000,
   })
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: getCompanies,
+  })
+  const ownCompany = companies.find((c: { is_own_company: boolean }) => c.is_own_company)
 
   // Keep selection clean
   useEffect(() => {
@@ -922,6 +932,17 @@ export default function ReconciliationsPage() {
     e.preventDefault()
     e.stopPropagation()
     setCtxMenu({ visible: true, x: e.clientX, y: e.clientY, record })
+  }
+
+  async function handleRunAgent(record: MasterBalance) {
+    if (!record.counterparty_id || !ownCompany?.id) return
+    setRunningId(record.id)
+    try {
+      const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
+      if (res?.run_id) fireAgentIsland(res.run_id)
+    } finally {
+      setRunningId(null)
+    }
   }
 
   function ctxItems(record: MasterBalance): CtxItem[] {
@@ -1084,13 +1105,25 @@ export default function ReconciliationsPage() {
                         <>
                           <button
                             onClick={e => { e.stopPropagation(); setViewRecord(record) }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#29BE98]/10 text-[#29BE98] hover:bg-[#29BE98]/20 transition-colors"
+                            title="View Statement"
+                            className="p-2 rounded-lg text-[#29BE98] bg-[#29BE98]/10 hover:bg-[#29BE98]/20 transition-colors"
                           >
-                            <Eye className="w-3 h-3" />View
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleRunAgent(record) }}
+                            disabled={runningId === record.id}
+                            title="Run Reconciliation Agent"
+                            className="p-2 rounded-lg text-purple-500 bg-purple-500/10 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {runningId === record.id
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <Zap className="w-3.5 h-3.5" />}
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); setSendRecord(record) }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors"
+                            title="Send Magic Link"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors"
                           >
                             <Mail className="w-3 h-3" />Send Link
                           </button>

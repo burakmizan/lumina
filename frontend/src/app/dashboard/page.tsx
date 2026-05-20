@@ -8,7 +8,8 @@ import {
 import { AppShell } from '@/components/layout/AppShell'
 import { DiscrepancyModal } from '@/components/dashboard/DiscrepancyModal'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
-import { getCompanies, getDiscrepancies, approveDiscrepancy } from '@/lib/api'
+import { getCompanies, getDiscrepancies, approveDiscrepancy, getDiscrepancyAnalytics } from '@/lib/api'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from 'recharts'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { Company, Discrepancy } from '@/types'
 
@@ -51,6 +52,12 @@ export default function DashboardPage() {
     onError: () => {
       setApproveError('Approval failed — check SMTP config or backend logs.')
     },
+  })
+
+  const { data: analytics } = useQuery({
+    queryKey: ['discrepancy-analytics'],
+    queryFn: () => getDiscrepancyAnalytics(90),
+    staleTime: 60_000,
   })
 
   const companyMap = companies.reduce<Record<string, Company>>((acc, c) => {
@@ -107,6 +114,9 @@ export default function DashboardPage() {
           highlight={awaitingCount > 0}
         />
       </div>
+
+      {/* ── Analytics ── */}
+      {analytics && <DiscrepancyAnalytics analytics={analytics} companyMap={companyMap} />}
 
       {/* ── Discrepancy Feed ── */}
       <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden">
@@ -218,6 +228,127 @@ export default function DashboardPage() {
         />
       )}
     </AppShell>
+  )
+}
+
+/* ── Analytics Section ─────────────────────────────────────────────────────── */
+
+const TYPE_COLORS: Record<string, string> = {
+  amount_mismatch: '#f59e0b',
+  missing_record:  '#ef4444',
+  date_mismatch:   '#3b82f6',
+  duplicate:       '#8b5cf6',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  amount_mismatch: 'Amount Mismatch',
+  missing_record:  'Missing Record',
+  date_mismatch:   'Date Mismatch',
+  duplicate:       'Duplicate',
+}
+
+function DiscrepancyAnalytics({
+  analytics,
+  companyMap,
+}: {
+  analytics: { trend: { month: string; type: string; count: number }[]; top_counterparties: { company_id: string; count: number; total_diff: number }[] }
+  companyMap: Record<string, Company>
+}) {
+  // Build recharts-friendly monthly data
+  const monthMap: Record<string, Record<string, number>> = {}
+  for (const row of analytics.trend) {
+    if (!monthMap[row.month]) monthMap[row.month] = {}
+    monthMap[row.month][row.type] = (monthMap[row.month][row.type] || 0) + row.count
+  }
+  const chartData = Object.entries(monthMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, types]) => ({
+      month: month.slice(5), // "2026-04" → "04"
+      ...types,
+    }))
+
+  // Type breakdown for pie
+  const typeBreakdown = Object.entries(
+    analytics.trend.reduce<Record<string, number>>((acc, r) => {
+      acc[r.type] = (acc[r.type] || 0) + r.count
+      return acc
+    }, {})
+  ).map(([type, value]) => ({ name: TYPE_LABELS[type] || type, value, color: TYPE_COLORS[type] || '#64748b' }))
+
+  const totalDiscs = typeBreakdown.reduce((s, r) => s + r.value, 0)
+
+  if (chartData.length === 0) return null
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+      {/* Monthly trend */}
+      <div className="lg:col-span-2 bg-surface-secondary border border-surface-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Discrepancy Trend</h3>
+            <p className="text-xs text-text-muted mt-0.5">Last 90 days by type</p>
+          </div>
+          <span className="text-xs bg-surface-primary border border-surface-border px-2 py-1 rounded-lg text-text-secondary">
+            {totalDiscs} total
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={chartData} barSize={28}>
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
+            <Tooltip
+              contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: '#94a3b8' }}
+            />
+            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v: string) => TYPE_LABELS[v] || v} />
+            <Bar dataKey="amount_mismatch" stackId="a" fill={TYPE_COLORS.amount_mismatch} radius={[0,0,0,0]} />
+            <Bar dataKey="missing_record"  stackId="a" fill={TYPE_COLORS.missing_record} radius={[0,0,0,0]} />
+            <Bar dataKey="date_mismatch"   stackId="a" fill={TYPE_COLORS.date_mismatch} radius={[4,4,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Breakdown + top counterparties */}
+      <div className="flex flex-col gap-4">
+        {/* Pie */}
+        <div className="bg-surface-secondary border border-surface-border rounded-2xl p-5 flex-1">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">Type Breakdown</h3>
+          <div className="flex items-center gap-3">
+            <PieChart width={80} height={80}>
+              <Pie data={typeBreakdown} dataKey="value" cx={36} cy={36} innerRadius={22} outerRadius={38} paddingAngle={2}>
+                {typeBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+            </PieChart>
+            <div className="flex flex-col gap-1.5">
+              {typeBreakdown.map(t => (
+                <div key={t.name} className="flex items-center gap-1.5 text-xs">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: t.color }} />
+                  <span className="text-text-secondary truncate">{t.name}</span>
+                  <span className="font-semibold text-gray-900 ml-auto pl-2">{t.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Top counterparties */}
+        {analytics.top_counterparties.length > 0 && (
+          <div className="bg-surface-secondary border border-surface-border rounded-2xl p-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Top Issues</h3>
+            <div className="flex flex-col gap-2">
+              {analytics.top_counterparties.slice(0, 3).map(cp => (
+                <div key={cp.company_id} className="flex items-center justify-between text-xs">
+                  <span className="text-text-secondary truncate max-w-[120px]">
+                    {companyMap[cp.company_id]?.name ?? `…${cp.company_id.slice(-6)}`}
+                  </span>
+                  <span className="font-semibold text-amber-500">{cp.count} issues</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

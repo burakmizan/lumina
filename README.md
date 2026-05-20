@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="frontend/public/luminaicon.png" alt="Lumina Logo" width="120" />
+  <img src="frontend/public/luminawhite.png" alt="Lumina Logo" width="120" />
   
   # ⚡ Lumina: Enterprise AI Reconciliation Agent
   
@@ -80,5 +80,3 @@ npm run dev
 Navigate to the Lumina Dashboard -> Integrations -> Download Agent Package. Extract the ZIP and double-click start-lumina.bat to initiate the secure ANSI-colored sync sequence.
 
 Note: The local agent requires Python 3.10+ and outbound HTTPS access to your FastAPI backend.
-
-Bu tablo yapısı, ortalanmış logolar ve rozetler, kod blokları ve özellikle o "The Architecture" kısmındaki profesyonel dil, tam listelerde bir numara olacak startup projelerinin tarzıdır. GitHub repona bunu gömdüğün an kalite hissi tavan yapacak!

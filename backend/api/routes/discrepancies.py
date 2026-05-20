@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import List, Optional
@@ -16,6 +17,60 @@ async def list_discrepancies(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     return await DiscrepancyService(db).get_all(status=disc_status, company_id=company_id)
+
+
+@router.get("/analytics")
+async def get_discrepancy_analytics(
+    days: int = 90,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """MongoDB aggregation pipeline — monthly discrepancy trend + type breakdown."""
+    since = datetime.utcnow() - timedelta(days=days)
+
+    trend_pipeline = [
+        {"$match": {"detected_at": {"$gte": since}}},
+        {"$group": {
+            "_id": {
+                "month": {"$dateToString": {"format": "%Y-%m", "date": "$detected_at"}},
+                "type":  "$discrepancy_type",
+            },
+            "count":      {"$sum": 1},
+            "total_diff": {"$sum": {"$ifNull": ["$difference", 0]}},
+        }},
+        {"$sort": {"_id.month": 1}},
+    ]
+
+    counterparty_pipeline = [
+        {"$match": {"detected_at": {"$gte": since}}},
+        {"$group": {
+            "_id":        "$company_b_id",
+            "count":      {"$sum": 1},
+            "total_diff": {"$sum": {"$ifNull": ["$difference", 0]}},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 5},
+    ]
+
+    trend_raw, cp_raw = [], []
+    async for doc in db["discrepancies"].aggregate(trend_pipeline):
+        trend_raw.append({
+            "month":      doc["_id"]["month"],
+            "type":       doc["_id"]["type"],
+            "count":      doc["count"],
+            "total_diff": round(doc["total_diff"], 2),
+        })
+    async for doc in db["discrepancies"].aggregate(counterparty_pipeline):
+        cp_raw.append({
+            "company_id": doc["_id"],
+            "count":      doc["count"],
+            "total_diff": round(doc["total_diff"], 2),
+        })
+
+    return {
+        "trend":              trend_raw,
+        "top_counterparties": cp_raw,
+        "period_days":        days,
+    }
 
 
 @router.get("/{discrepancy_id}", response_model=DiscrepancyResponse)

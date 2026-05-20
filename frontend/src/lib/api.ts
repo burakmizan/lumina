@@ -76,6 +76,12 @@ export const triggerReconciliation = (companyAId: string, companyBId: string) =>
     })
     .then(r => r.data)
 
+export const globalSearch = (q: string) =>
+  api.get('/api/v1/search/', { params: { q } }).then(r => r.data)
+
+export const getDiscrepancyAnalytics = (days: number = 90) =>
+  api.get('/api/v1/discrepancies/analytics', { params: { days: days } }).then(r => r.data)
+
 // ── Portal ────────────────────────────────────────────────────────────────────
 export const startReconciliationSession = (
   initiating_company_id: string,
