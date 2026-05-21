@@ -9,6 +9,7 @@ import {
   Archive, Users, FileDown, Zap
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
+import { GeminiContextButton } from '@/components/ui/GeminiContextButton'
 import {
   getMasterBalances,
   getCompanies,
@@ -1084,8 +1085,20 @@ export default function ReconciliationsPage() {
                     </div>
                     <span className="text-sm text-slate-500 truncate">{record.customer_code || '—'}</span>
                     <span className="text-sm text-slate-500 font-mono truncate">{record.tax_id || '—'}</span>
-                    <span className="text-sm font-medium text-slate-900 text-right tabular-nums">
+                    <span className="text-sm font-medium text-slate-900 text-right tabular-nums flex items-center justify-end gap-0.5">
                       {formatCurrency(record.balance, record.currency)}
+                      <GeminiContextButton
+                        page="Reconciliation List"
+                        context={{
+                          type:          'master_balance',
+                          company_name:  record.company_name,
+                          customer_code: record.customer_code,
+                          tax_id:        record.tax_id,
+                          balance:       record.balance,
+                          currency:      record.currency,
+                          status:        record.reconciliation_status,
+                        }}
+                      />
                     </span>
                     <span className="text-sm text-[#94A3B8]">{record.currency}</span>
                     <StatusBadge status={record.reconciliation_status} />

@@ -12,6 +12,7 @@ import {
 import { useAuth } from '@/lib/auth-context'
 import { AgentIsland } from '@/components/ui/AgentIsland'
 import { GlobalSearch } from '@/components/ui/GlobalSearch'
+import { GeminiPanel } from '@/components/ui/GeminiPanel'
 
 const ALL_NAV = [
   { label: 'Dashboard',           href: '/dashboard',        icon: LayoutDashboard, permission: 'dashboard.view' },
@@ -199,6 +200,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
       <AgentIsland />
+      <GeminiPanel />
     </div>
   )
 }

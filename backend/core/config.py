@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     BACKEND_PORT: int = 8000
     SECRET_KEY: str = "change-me-in-production"
     DEBUG: bool = True
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://lumina-iota-brown.vercel.app"]
     FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     # File storage (raw uploaded files persisted to disk for download capability)

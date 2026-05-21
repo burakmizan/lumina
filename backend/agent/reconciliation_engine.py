@@ -2,7 +2,7 @@ import uuid
 import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from agent.gemini_agent import GeminiAgent
+from agent.adk_engine import analyze_discrepancy_adk
 from agent.mcp_client import MCPMongoClient
 from services.ledger_service import LedgerService
 from services.discrepancy_service import DiscrepancyService
@@ -23,7 +23,6 @@ class ReconciliationEngine:
 
     def __init__(self, db: AsyncIOMotorDatabase):
         self.db = db
-        self.gemini = GeminiAgent()
         self.ledger_svc = LedgerService(db)
         self.disc_svc = DiscrepancyService(db)
         self.company_svc = CompanyService(db)
@@ -82,7 +81,7 @@ class ReconciliationEngine:
             if not dtype:
                 continue
 
-            gemini_result = await self.gemini.analyze_discrepancy(
+            gemini_result = await analyze_discrepancy_adk(
                 company_a, company_b, ref,
                 {"company_a_record": rec_a, "company_b_record": rec_b},
             )
@@ -119,7 +118,6 @@ class ReconciliationEngine:
             }},
         )
         # Generate embeddings for vector search (non-blocking)
-        await self._generate_embeddings(run_id)
         await self._generate_embeddings(run_id)
         logger.info(f"[Run {run_id}] Reconciliation complete — {found} discrepancies detected.")
         return run_id

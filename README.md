@@ -17,7 +17,7 @@
 ## 🎯 The Mission
 In the B2B sector, reconciling ledger accounts (Statements of Account) between two companies is a highly manual, error-prone, and time-consuming process. Missing invoices, wrong amounts, and communication delays disrupt cash flows.
 
-**Lumina** is an autonomous AI agent that leverages **Gemini 1.5** and **MongoDB MCP (Model Context Protocol)** to read on-premise ERP data, instantly identify financial discrepancies between corporate ledgers, and autonomously draft professional resolution workflows.
+**Lumina** is an autonomous AI agent that leverages **Gemini 3** and **MongoDB MCP (Model Context Protocol)** to read on-premise ERP data, instantly identify financial discrepancies between corporate ledgers, and autonomously draft professional resolution workflows.
 
 ---
 

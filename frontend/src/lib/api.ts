@@ -296,3 +296,12 @@ export const updateRole = (id: string, data: unknown): Promise<Role> =>
 
 export const deleteRole = (id: string): Promise<void> =>
   api.delete(`/api/v1/users/roles/${id}`).then(r => r.data)
+
+// ── AI & Gemini ──────────────────────────────────────────────────────────────
+
+export const chatWithGemini = (payload: {  
+  message: string  
+  context?: Record<string, unknown>  
+  history?: { role: string; content: string }[]  
+  page?: string
+}) => api.post('/api/v1/gemini/chat', payload).then(r => r.data)
