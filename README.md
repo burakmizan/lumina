@@ -8,7 +8,7 @@
   [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
   [![Hackathon](https://img.shields.io/badge/Hackathon-Google_Cloud_Rapid_Agent-blue)](https://rapid-agent.devpost.com/)
   [![Track: MongoDB](https://img.shields.io/badge/Track-MongoDB-success)](#)
-  [![Built with ADK](https://img.shields.io/badge/Built%20with-Google%20ADK%202.0-4285F4?logo=google)](https://google.github.io/adk-docs/)
+  [![Built with Agent Builder](https://img.shields.io/badge/Built%20with-Google%20Cloud%20Agent%20Builder-4285F4?logo=google)](#)
   [![Status: Live](https://img.shields.io/badge/Status-Live%20on%20Cloud%20Run-brightgreen)](#)
 </div>
 
@@ -40,9 +40,9 @@ In B2B finance, reconciling ledger accounts between two companies is painful:
 
 ---
 
-## 🤖 The Solution: ADK Multi-Agent Architecture
+## 🤖 The Solution: Multi-Agent Architecture (Google Cloud Agent Builder)
 
-Lumina uses **Google Agent Development Kit (ADK) 2.0** to orchestrate a team of specialized AI agents that work together autonomously:
+Lumina uses **Google Cloud Agent Builder** (via the **Gemini Enterprise Agent Platform SDK for Python**) to orchestrate a team of specialized AI agents that work together autonomously:
 
 ```text
 lumina_root_agent  (Orchestrator — Gemini 3 Flash)
@@ -76,7 +76,7 @@ Lumina's entire data layer runs on **MongoDB Atlas**, integrated via a **Python-
 
 | Layer | Technology |
 | :--- | :--- |
-| **AI Orchestration** | Google ADK 2.0 (`google-adk`) |
+| **AI Orchestration** | Google Cloud Agent Builder (Gemini Enterprise Agent Platform SDK) |
 | **LLM** | Gemini 3 Flash Preview (`gemini-3-flash-preview`) |
 | **Database** | MongoDB Atlas (Motor async driver) |
 | **MCP Partner** | MongoDB — custom Python MCP server |
@@ -166,7 +166,7 @@ Supported ERP drivers: `excel`, `csv`, `sap`, `logo`, `mikro`
 
 ## 💡 Key Learnings
 
-- **ADK Multi-Agent Orchestration** enables clean separation of concerns — each sub-agent has a narrow, well-defined responsibility, making the system easier to debug and extend.
+- **Gemini Enterprise Agent Platform SDK** enables a clean, code-first separation of concerns — each sub-agent has a narrow, well-defined responsibility, making the system easier to debug and extend compared to pure low-code setups.
 - **MCP as a Data Bridge** gives agents a structured, tool-call interface to MongoDB rather than dumping raw data into the context window — dramatically reducing hallucination on financial figures.
 - **Human-in-the-Loop is non-negotiable** in finance. The `awaiting_approval` gate before any email dispatch ensures accountants stay in control even as AI handles the heavy lifting.
 - **Schema-free MongoDB** was ideal for reconciliation data: ledger records from 5+ ERP systems have wildly different shapes, and MongoDB's flexible documents absorbed all of them without migrations.
