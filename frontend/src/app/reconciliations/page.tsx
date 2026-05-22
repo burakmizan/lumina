@@ -292,7 +292,18 @@ function RecordDocsModal({ record, onClose }: { record: MasterBalance; onClose: 
                   <div key={file.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <FileSpreadsheet className="w-8 h-8 text-[#29BE98] flex-shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-900 truncate">{file.filename}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-slate-900 truncate">{file.filename}</p>
+                        {file.source?.startsWith('portal') ? (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20">
+                            ↑ Counterparty uploaded
+                          </span>
+                        ) : (
+                          <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-[#29BE98]/10 text-[#29BE98] border border-[#29BE98]/20">
+                            Internal
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 mt-0.5">{(file.size / 1024).toFixed(1)} KB · {new Date(file.created_at).toLocaleDateString('en-US')}</p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -940,7 +951,14 @@ export default function ReconciliationsPage() {
     setRunningId(record.id)
     try {
       const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
-      if (res?.run_id) fireAgentIsland(res.run_id)
+      if (res?.run_id) {
+        fireAgentIsland(res.run_id)
+
+        qc.invalidateQueries({ queryKey: ['master-balances'] })
+        qc.invalidateQueries({ queryKey: ['discrepancies'] })
+      }
+    } catch (err) {
+      console.error("Agent trigger error:", err)
     } finally {
       setRunningId(null)
     }

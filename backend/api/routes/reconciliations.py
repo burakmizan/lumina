@@ -1,6 +1,7 @@
 import io
 import re
 import os
+from urllib.parse import quote
 import logging
 from typing import List
 
@@ -272,7 +273,7 @@ async def download_file(
     return StreamingResponse(
         iter([file_bytes]),
         media_type=_content_type(filename),
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
 

@@ -101,27 +101,62 @@ function ContextMenu({
 
 // ── Bulk Action Bar ────────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, onDelete, onClear, isDeleting }: {
+function BulkActionBar({ count, onDelete, onClear, isDeleting, onSend, isSending }: {
   count: number; onDelete: () => void; onClear: () => void; isDeleting: boolean
+  onSend: () => void; isSending: boolean
 }) {
   if (count === 0) return null
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-[#16293A] border border-white/15 rounded-2xl shadow-2xl backdrop-blur-sm animate-in slide-in-from-bottom-4 duration-200">
-      <span className="text-sm font-medium text-white">
-        <span className="text-[#29BE98] font-bold">{count}</span> selected
-      </span>
-      <div className="w-px h-5 bg-white/10" />
-      <button
-        onClick={onDelete}
-        disabled={isDeleting}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
-      >
-        {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-        Delete Selected
-      </button>
-      <button onClick={onClear} className="p-1.5 text-[#94A3B8] hover:text-white transition-colors rounded-lg hover:bg-white/5">
-        <X className="w-4 h-4" />
-      </button>
+    <div
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 overflow-hidden shadow-2xl"
+      style={{ borderRadius: '20px', padding: '2px' }}
+    >
+      {/* Spinning gradient border */}
+      <div
+        className="animate-spin pointer-events-none"
+        style={{
+          position: 'absolute',
+          width: '500px',
+          height: '500px',
+          top: '50%',
+          left: '50%',
+          marginLeft: '-250px',
+          marginTop: '-250px',
+          background: 'conic-gradient(from 0deg, #00D4FF 0%, #00E676 30%, #AEEA00 55%, #00E676 80%, #00D4FF 100%)',
+          animationDuration: '4s',
+          animationTimingFunction: 'linear',
+        }}
+      />
+      {/* Content */}
+      <div className="relative flex items-center gap-3 px-5 py-3 bg-white rounded-[18px]">
+        <span className="text-sm font-medium text-slate-900">
+          <span className="text-[#29BE98] font-bold">{count}</span> selected
+        </span>
+        <div className="w-px h-5 bg-slate-200" />
+        <button
+          onClick={onSend}
+          disabled={isSending}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-[#29BE98]/10 text-[#29BE98] border border-[#29BE98]/20 rounded-lg hover:bg-[#29BE98]/20 transition-colors disabled:opacity-50"
+        >
+          {isSending
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Send className="w-3.5 h-3.5" />}
+          Send Selected
+        </button>
+        <button
+          onClick={onDelete}
+          disabled={isDeleting}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-semibold bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
+        >
+          {isDeleting
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Trash2 className="w-3.5 h-3.5" />}
+          Delete Selected
+        </button>
+        <button onClick={onClear} className="p-1.5 text-slate-400 hover:text-slate-700 transition-colors rounded-lg hover:bg-slate-100">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -643,7 +678,14 @@ function DocsModal({ company, onClose }: { company: Company; onClose: () => void
                         <span>·</span>
                         <span>{(file.size / 1024).toFixed(1)} KB</span>
                         <span>·</span>
-                        <span className="text-[#29BE98] text-[10px] px-1.5 py-0.5 rounded border border-[#29BE98]/20 bg-[#29BE98]/10">Internal</span>
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded border font-medium',
+                          file.source?.startsWith('portal')
+                            ? 'bg-[#2597F8]/10 text-[#2597F8] border-[#2597F8]/20'
+                            : 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20',
+                        )}>
+                          {file.source?.startsWith('portal') ? '↑ Counterparty' : 'Internal'}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -761,6 +803,23 @@ export default function CounterpartiesPage() {
     if (!ownCompany) { setToast({ variant: 'error', message: 'Your company is not configured yet.' }); return }
     setStartingId(counterpartyId)
     startMutation.mutate({ initiating: ownCompany.id, counterparty: counterpartyId })
+  }
+
+  const [isBulkSending, setIsBulkSending] = useState(false)
+
+  async function handleBulkSend() {
+    if (!ownCompany) { setToast({ variant: 'error', message: 'Your company is not configured yet.' }); return }
+    setIsBulkSending(true)
+    let sent = 0
+    for (const id of Array.from(selected)) {
+      try {
+        await startReconciliationSession(ownCompany.id, id)
+        sent++
+      } catch { /* skip failed */ }
+    }
+    setIsBulkSending(false)
+    setSelected(new Set())
+    setToast({ variant: 'success', message: `${sent} invitation${sent !== 1 ? 's' : ''} sent.` })
   }
 
   function handleContextMenu(e: React.MouseEvent, company: Company) {
@@ -1027,6 +1086,8 @@ export default function CounterpartiesPage() {
         onDelete={() => bulkDeleteMutation.mutate(Array.from(selected))}
         onClear={() => setSelected(new Set())}
         isDeleting={bulkDeleteMutation.isPending}
+        onSend={handleBulkSend}
+        isSending={isBulkSending}
       />
 
       {/* ── Context Menu ── */}

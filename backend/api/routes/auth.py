@@ -24,7 +24,7 @@ async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db
 
     # Auto-seed admin user on first login if users collection is empty
     admin_username = os.environ.get("LUMINA_USERNAME", "admin")
-    admin_password = os.environ.get("LUMINA_PASSWORD", "lumina2024")
+    admin_password = os.environ.get("LUMINA_PASSWORD", "lumina2026")
     admin_email = os.environ.get("LUMINA_ADMIN_EMAIL", "admin@lumina.local")
     await svc.seed_admin_user(admin_username, admin_password, admin_email)
 

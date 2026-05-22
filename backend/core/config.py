@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # Google Cloud / Gemini
     GOOGLE_CLOUD_PROJECT: str = ""
     GOOGLE_CLOUD_LOCATION: str = "us-central1"
-    GEMINI_MODEL: str = "gemini-1.5-pro"
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
     GEMINI_API_KEY: str = ""
 
     # Email (SMTP)

@@ -1,9 +1,12 @@
 import logging
 import os
+import io
+import openpyxl
+from urllib.parse import quote
 from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -125,7 +128,7 @@ async def download_session_file(
     return StreamingResponse(
         iter([file_bytes]),
         media_type=content_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
     )
 
 
@@ -160,8 +163,90 @@ async def delete_session_file(
     return {"message": "File deleted successfully."}
 
 
+async def _process_portal_upload(
+    db: AsyncIOMotorDatabase,
+    session_id: str,
+    initiating_company_id: str,
+    counterparty_id: str,
+    file_bytes: bytes,
+    filename: str,
+    storage_id: str,
+) -> None:
+    """Parse file + create ledger records + trigger reconciliation — runs in background."""
+    from agent.reconciliation_engine import ReconciliationEngine
+    from services.ledger_service import LedgerService
+    from models.ledger import LedgerCreate
+    import uuid
+
+    session_svc = ReconciliationSessionService(db)
+    ledger_svc = LedgerService(db)
+    created: list[dict] = []
+
+    try:
+        # Tier-1 Local Parser: 401 veren Gemini yerine openpyxl ile Excel'i okuyoruz
+        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        
+        if rows:
+            headers = [str(c).lower().strip() if c is not None else "" for c in rows[0]]
+            
+            # Sütun indekslerini esnekçe tespit et
+            ref_idx = next((i for i, h in enumerate(headers) if "ref" in h or "invoice" in h or "no" in h), 0)
+            amt_idx = next((i for i, h in enumerate(headers) if "outstanding" in h or "amount" in h or "balance" in h or "tutar" in h), 1)
+            desc_idx = next((i for i, h in enumerate(headers) if "name" in h or "desc" in h or "açıklama" in h), 2)
+            
+            # Eski portal kayıtlarını bu seans öncesinde temizle
+            await db["ledgers"].delete_many({
+                "company_id":       counterparty_id,
+                "counterparty_id": initiating_company_id,
+                "source":          f"portal:{session_id}",
+            })
+            logger.info(f"[Portal/BG] Eski portal kayıtları temizlendi: {counterparty_id}")
+
+            for row in rows[1:]:
+                if not any(c is not None for c in row):
+                    continue
+                    
+                txn_ref = str(row[ref_idx]).strip() if ref_idx < len(row) and row[ref_idx] else f"PRTL-{len(created)+1}"
+                
+                try:
+                    # Tier-1 Fix: Kutuplaşma (+ / -) dengesini bozmamak için abs() fonksiyonunu KALDIRDIK!
+                    raw_amt = str(row[amt_idx]).replace(",", "").replace(" ", "").replace("$", "") if amt_idx < len(row) else "0"
+                    amount_val = float(raw_amt)
+                except (ValueError, TypeError):
+                    amount_val = 0.0
+                    
+                desc = str(row[desc_idx]).strip() if desc_idx < len(row) and row[desc_idx] else "Portal Entry"
+
+                ledger_payload = LedgerCreate(
+                    company_id=counterparty_id,
+                    counterparty_id=initiating_company_id,
+                    transaction_ref=str(txn_ref),
+                    transaction_type="invoice",
+                    amount=amount_val,
+                    currency="USD",
+                    transaction_date=datetime.utcnow(),
+                    description=desc,
+                    source=f"portal:{session_id}",
+                )
+                created.append(await ledger_svc.create(ledger_payload))
+                
+    except Exception as e:
+        logger.error(f"[Portal/BG] Yerel Excel parsing motoru hata aldı: {e}")
+
+    await session_svc.mark_upload_complete(
+        session_id, len(created), filename=filename, storage_id=storage_id
+    )
+    logger.info(f"[Portal/BG] {len(created)} records processed for session {session_id}")
+
+    if created:
+        run_id = str(uuid.uuid4())
+        await ReconciliationEngine(db).run(initiating_company_id, counterparty_id, run_id)
+        logger.info(f"[Portal/BG] Reconciliation complete: run_id={run_id}")
 @router.post("/upload", response_model=PortalUploadResponse)
 async def upload_counterparty_ledger(
+    background_tasks: BackgroundTasks,
     token: str = Form(...),
     file: UploadFile = File(...),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -201,59 +286,22 @@ async def upload_counterparty_ledger(
         metadata={"session_id": session["id"]},
     )
 
-    from agent.gemini_parser import GeminiParser
-    from services.ledger_service import LedgerService
-    from models.ledger import LedgerCreate
-
-    parser = GeminiParser(api_key=settings.GEMINI_API_KEY, model=settings.GEMINI_MODEL)
-
-    try:
-        parsed_records = await parser.parse_ledger_file(file_bytes, filename)
-    except Exception as e:
-        logger.error(f"[Portal/Upload] Parse error: {e}")
-        raise HTTPException(status_code=422, detail=f"File parsing error: {str(e)}")
-
-    if not parsed_records:
-        raise HTTPException(
-            status_code=422,
-            detail="No records could be read from the file. Please upload your ledger statement in Excel, CSV, or PDF format.",
-        )
-
-    ledger_svc = LedgerService(db)
-    created: list[dict] = []
-    for rec in parsed_records:
-        try:
-            raw_date = str(rec.get("transaction_date", ""))
-            try:
-                tx_date = datetime.fromisoformat(raw_date)
-            except ValueError:
-                tx_date = datetime.utcnow()
-
-            ledger_payload = LedgerCreate(
-                company_id=session["counterparty_id"],
-                counterparty_id=session["initiating_company_id"],
-                transaction_ref=str(rec.get("transaction_ref", f"ROW-{len(created)+1}")),
-                transaction_type=rec.get("transaction_type", "invoice"),
-                amount=abs(float(rec.get("amount", 0))),
-                currency=str(rec.get("currency", "USD")),
-                transaction_date=tx_date,
-                description=str(rec.get("description", "")),
-                source=f"portal:{session['id']}",
-            )
-            created.append(await ledger_svc.create(ledger_payload))
-        except Exception as e:
-            logger.warning(f"[Portal/Upload] Skipping malformed record: {e} — {rec}")
-
-    await session_svc.mark_upload_complete(
-        session["id"], len(created), filename=filename, storage_id=storage_id
+    # Queue all heavy processing in background — return immediately
+    background_tasks.add_task(
+        _process_portal_upload,
+        db,
+        session["id"],
+        session["initiating_company_id"],
+        session["counterparty_id"],
+        file_bytes,
+        filename,
+        storage_id,
     )
 
-    logger.info(
-        f"[Portal/Upload] Session {session['id']}: {len(created)}/{len(parsed_records)} records saved"
-    )
+    logger.info(f"[Portal/Upload] File {storage_id} saved, processing queued for session {session['id']}")
 
     return PortalUploadResponse(
         session_id=session["id"],
-        parsed_count=len(created),
-        message=f"{len(created)} records successfully imported.",
+        parsed_count=0,
+        message="File received. AI reconciliation analysis has started in the background.",
     )

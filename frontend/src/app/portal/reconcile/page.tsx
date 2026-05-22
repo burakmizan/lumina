@@ -124,16 +124,11 @@ function PortalContent() {
 
       <div className="w-full max-w-[480px] relative z-10">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-2xl bg-accent-green/15 border border-accent-green/25 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-accent-green" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-white tracking-tight">Lumina</h1>
-            <p className="text-[10px] text-text-secondary uppercase tracking-[0.15em]">
-              Secure Reconciliation Portal
-            </p>
-          </div>
+        <div className="flex flex-col items-center justify-center gap-3 mb-8">
+          <img src="/lumina.png" alt="Lumina Logo" className="h-10 w-auto object-contain" />
+          <p className="text-[11px] text-slate-500 uppercase tracking-widest font-medium">
+            Secure Reconciliation Portal
+          </p>
         </div>
 
         {/* Loading */}
@@ -161,19 +156,19 @@ function PortalContent() {
         {/* Upload screen */}
         {(phase === 'upload' || phase === 'uploading') && session?.valid && (
           <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 pt-6 pb-5 border-b border-surface-border">
+            <div className="px-6 pt-6 pb-5 border-b border-slate-200">
               <div className="flex items-center gap-2 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent-blue animate-pulse" />
-                <p className="text-[10px] uppercase tracking-widest text-accent-blue font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#2597F8] animate-pulse" />
+                <p className="text-[10px] uppercase tracking-widest text-[#2597F8] font-medium">
                   End-of-Period Reconciliation
                 </p>
               </div>
-              <h2 className="text-lg font-bold text-white">Ledger Statement Upload</h2>
-              <p className="text-sm text-text-muted mt-1 leading-relaxed">
+              <h2 className="text-xl font-bold text-slate-900 mt-2">Ledger Statement Upload</h2>
+              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
                 Dear{' '}
-                <span className="text-white font-medium">{session.counterparty_name}</span>, your
+                <span className="text-slate-900 font-semibold">{session.counterparty_name}</span>, your
                 end-of-period reconciliation process with{' '}
-                <span className="text-text-secondary">{session.initiating_company_name}</span> has
+                <span className="text-slate-900 font-semibold">{session.initiating_company_name}</span> has
                 started.
               </p>
             </div>
@@ -205,12 +200,12 @@ function PortalContent() {
                 />
                 {selectedFile ? (
                   <div className="flex items-center gap-3 px-4">
-                    <div className="w-10 h-10 rounded-xl bg-surface-primary border border-surface-border flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
                       {getFileIcon(selectedFile)}
                     </div>
                     <div className="text-left min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-white truncate">{selectedFile.name}</p>
-                      <p className="text-xs text-text-muted">{formatBytes(selectedFile.size)}</p>
+                      <p className="text-sm font-semibold text-slate-900 truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-slate-500">{formatBytes(selectedFile.size)}</p>
                     </div>
                     <button
                       onClick={e => {
@@ -218,20 +213,20 @@ function PortalContent() {
                         setSelectedFile(null)
                         if (inputRef.current) inputRef.current.value = ''
                       }}
-                      className="flex-shrink-0 w-7 h-7 rounded-lg bg-surface-primary border border-surface-border flex items-center justify-center text-text-muted hover:text-white transition-colors"
+                      className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="w-12 h-12 rounded-2xl bg-surface-primary border border-surface-border flex items-center justify-center mb-4">
-                      <Upload className="w-6 h-6 text-text-muted" />
+                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-4">
+                      <Upload className="w-6 h-6 text-slate-400" />
                     </div>
-                    <p className="text-sm font-medium text-white mb-1">
+                    <p className="text-sm font-medium text-slate-900 mb-1">
                       {isDragging ? 'Drop your file here' : 'Drag & drop your file or browse'}
                     </p>
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs text-slate-500">
                       Excel (.xlsx, .xls), CSV or PDF · Max. 20 MB
                     </p>
                   </>
@@ -261,7 +256,7 @@ function PortalContent() {
                 {phase === 'uploading' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading and parsing…
+                    Uploading…
                   </>
                 ) : (
                   <>
@@ -283,35 +278,55 @@ function PortalContent() {
 
         {/* Success */}
         {phase === 'success' && uploadResult && (
-          <div className="bg-surface-secondary border border-accent-green/20 rounded-2xl p-8 text-center shadow-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-accent-green/15 border border-accent-green/25 flex items-center justify-center mx-auto mb-5">
-              <CheckCircle2 className="w-7 h-7 text-accent-green" />
-            </div>
-            <h2 className="text-xl font-bold text-white mb-2">Upload Complete</h2>
-            <p className="text-text-muted text-sm leading-relaxed mb-6">
-              Your ledger statement has been submitted successfully.
-              <br />
-              The AI will complete the reconciliation analysis shortly.
-            </p>
-
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-surface-primary rounded-xl p-4 border border-surface-border">
-                <p className="text-[10px] text-text-muted mb-1">Records Processed</p>
-                <p className="text-2xl font-bold text-accent-green tabular-nums">
-                  {uploadResult.parsed_count}
-                </p>
+          <div className="bg-surface-secondary border border-accent-green/20 rounded-2xl overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="px-6 pt-7 pb-6 text-center border-b border-surface-border">
+              <div className="w-14 h-14 rounded-2xl bg-accent-green/15 border border-accent-green/25 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-7 h-7 text-accent-green" />
               </div>
-              <div className="bg-surface-primary rounded-xl p-4 border border-surface-border">
-                <p className="text-[10px] text-text-muted mb-1">Session ID</p>
-                <p className="text-xs font-mono text-text-secondary break-all leading-relaxed mt-1">
-                  {uploadResult.session_id.slice(-16)}
-                </p>
-              </div>
+              <h2 className="text-xl font-bold text-white mb-1">Statement Received</h2>
+              <p className="text-text-muted text-sm leading-relaxed">
+                Your file has been securely uploaded and queued for AI analysis.
+              </p>
             </div>
 
-            <p className="text-xs text-text-muted">
-              You will be notified of the results by email to your accounting contact.
-            </p>
+            {/* File detail */}
+            {selectedFile && (
+              <div className="px-6 py-4 border-b border-surface-border">
+                <div className="flex items-center gap-3 p-3 bg-surface-primary rounded-xl border border-surface-border">
+                  <div className="w-8 h-8 rounded-lg bg-accent-green/10 border border-accent-green/20 flex items-center justify-center flex-shrink-0">
+                    {selectedFile.name.toLowerCase().endsWith('.pdf')
+                      ? <FileText className="w-4 h-4 text-accent-green" />
+                      : <FileSpreadsheet className="w-4 h-4 text-accent-green" />
+                    }
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-text-muted">
+                      {selectedFile.size < 1024 * 1024
+                        ? `${(selectedFile.size / 1024).toFixed(1)} KB`
+                        : `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB`
+                      } · Uploaded successfully
+                    </p>
+                  </div>
+                  <CheckCircle2 className="w-4 h-4 text-accent-green flex-shrink-0" />
+                </div>
+              </div>
+            )}
+
+            {/* AI status */}
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 p-3 bg-accent-blue/5 border border-accent-blue/15 rounded-xl mb-4">
+                <span className="w-2 h-2 rounded-full bg-accent-blue animate-pulse flex-shrink-0" />
+                <p className="text-sm text-accent-blue font-medium">
+                  AI reconciliation analysis in progress…
+                </p>
+              </div>
+              <p className="text-[11px] text-text-muted text-center leading-relaxed">
+                Results will appear in the Lumina dashboard shortly.<br />
+                You will be notified by email when the analysis is complete.
+              </p>
+            </div>
           </div>
         )}
 

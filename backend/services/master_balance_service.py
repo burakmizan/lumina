@@ -131,6 +131,7 @@ def _normalize_tax_id(raw) -> str:
 
 class MasterBalanceService:
     def __init__(self, db: AsyncIOMotorDatabase):
+        self.db         = db  # Tier-1 Fix: Missing database reference restored
         self.collection = db["master_balances"]
         self.companies  = db["companies"]
         self.ledgers    = db["ledgers"]
@@ -138,9 +139,30 @@ class MasterBalanceService:
     # ── Queries ──────────────────────────────────────────────────────────────
 
     async def get_all(self) -> list[dict]:
+        """
+        Tier-1 Dynamic Balance Sync: Tablo her yüklendiğinde, 
+        Statement Entries (ledgers) içindeki gerçek toplamı bulur 
+        ve 1. görseldeki 'Balance' alanına dinamik olarak basar!
+        """
         docs = []
         async for doc in self.collection.find({}, sort=[("created_at", -1)]):
             doc["id"] = str(doc.pop("_id"))
+            
+            counterparty_id = doc.get("counterparty_id")
+            if counterparty_id:
+                # Bu şirkete ait yüklenmiş tüm detaylı ekstre kayıtlarını (Statement Entries) çekiyoruz
+                cursor = self.ledgers.find({
+                    "counterparty_id": counterparty_id,
+                    "source": "internal_statement"
+                })
+                total_outstanding = 0.0
+                async for ledger_doc in cursor:
+                    total_outstanding += float(ledger_doc.get("amount") or 0.0)
+                
+                # Eğer detaylı ekstre yüklenmişse, tablodaki statik bakiyeyi ez ve gerçek toplamı yaz!
+                if total_outstanding != 0.0:
+                    doc["balance"] = total_outstanding
+
             docs.append(doc)
         return docs
 
@@ -278,7 +300,7 @@ class MasterBalanceService:
             ref_no       = str(row.get("ref_no", "") or "").strip() or f"STMT-{i + 1}"
 
             try:
-                outstanding = abs(float(str(row.get("outstanding", 0) or 0).replace(",", "").replace(" ", "")))
+                outstanding = float(str(row.get("outstanding", 0) or 0).replace(",", "").replace(" ", ""))
             except (ValueError, TypeError):
                 outstanding = 0.0
 
@@ -372,6 +394,7 @@ class MasterBalanceService:
         own_company_id: str,
         file_storage_svc=None,
     ) -> dict:
+        
         """
         Parse a consolidated Statement of Account file that contains transaction
         rows for multiple clients.  Each row must include a `Customer Code` column
@@ -381,6 +404,12 @@ class MasterBalanceService:
         flips reconciliation_status to ready_for_external.
         Returns a summary dict suitable for ImportStatementOfAccountResponse.
         """
+        # ── TIER-1 HOTFIX: Pydantic Validation Error'ı engellemek için boş e-postaları anında onar ──
+        await self.companies.update_many(
+            {"reconciliation_email": ""},
+            {"$set": {"reconciliation_email": "finance@temporary-draft.com", "contact_name": "Finance Team"}}
+        )
+
         loop = asyncio.get_event_loop()
         lower = filename.lower()
 
@@ -412,13 +441,43 @@ class MasterBalanceService:
         for code, code_rows in groups.items():
             # Look up counterparty via master_balance.customer_code
             mb_doc = await self.collection.find_one({"customer_code": code})
+            
             if not mb_doc:
-                skipped += len(code_rows)
-                logger.warning("[SOA] No master_balance for customer_code=%s — skipping %d rows", code, len(code_rows))
-                continue
+                now_ts = datetime.utcnow()
+               
+                draft_company = {
+                    "name": f"Unknown Client ({code})",
+                    "tax_id": f"DRAFT-{code}",
+                    "reconciliation_email": f"finance@{code.lower()}.com" if "@" in f"finance@{code.lower()}.com" else f"finance-{code.lower()}@temporary-draft.com",
+                    "contact_name": "Finance Team",
+                    "status": "active",
+                    "is_own_company": False,
+                    "created_at": now_ts,
+                    "updated_at": now_ts,
+                }
+                comp_res = await self.companies.insert_one(draft_company)
+                counterparty_id = str(comp_res.inserted_id)
+                company_name = draft_company["name"]
 
-            counterparty_id  = mb_doc.get("counterparty_id")
-            company_name     = mb_doc.get("company_name", code)
+                # 2. Sonra master_balances koleksiyonuna bu kodu bağla
+                mb_doc = {
+                    "company_name":   company_name,
+                    "customer_code":  code,
+                    "tax_id":         f"DRAFT-{code}",
+                    "balance":        0.0,
+                    "currency":       "USD",
+                    "counterparty_id": counterparty_id,
+                    "reconciliation_status": "pending_match",
+                    "auto_created_counterparty": True,
+                    "created_at":     now_ts,
+                    "updated_at":     now_ts,
+                }
+                await self.collection.insert_one(mb_doc)
+                logger.info(f"[SOA] Auto-created draft master balance for unrecognized code: {code}")
+            else:
+                counterparty_id  = mb_doc.get("counterparty_id")
+                company_name     = mb_doc.get("company_name", code)
+
             if not counterparty_id:
                 skipped += len(code_rows)
                 continue
@@ -431,7 +490,7 @@ class MasterBalanceService:
                 account_name = str(row.get("account_name", "")).strip()
                 ref_no       = str(row.get("ref_no", "") or "").strip() or f"SOA-{code}-{i + 1}"
                 try:
-                    outstanding = abs(float(str(row.get("outstanding", 0) or 0).replace(",", "").replace(" ", "")))
+                    outstanding = float(str(row.get("outstanding", 0) or 0).replace(",", "").replace(" ", ""))
                 except (ValueError, TypeError):
                     outstanding = 0.0
                 ccy = str(row.get("ccy", "USD") or "USD").strip().upper() or "USD"

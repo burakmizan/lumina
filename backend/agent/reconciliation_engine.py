@@ -54,23 +54,55 @@ class ReconciliationEngine:
             )
             return run_id
 
-        # MCP Layer: Ledger verilerini MongoDB Atlas MCP Server üzerinden çek.
-        # Bu sayede Gemini agent her DB sorgusunu tool call olarak görür.
+        import re
+        # Bizim kayıtlarımız: internal_statement kaynaklı ve karşı firmaya ait olanlar
+        our_filter   = {"counterparty_id": company_b_id, "source": "internal_statement"}
+        # Karşı tarafın portal üzerinden yüklediği kayıtlar (bizim firmayı hedefleyen)
+        their_filter = {"counterparty_id": company_a_id, "source": re.compile(r"^portal:")}
+
         try:
             async with MCPMongoClient() as mcp:
-                pair = await mcp.get_ledgers_for_pair(company_a_id, company_b_id)
-            ledgers_a = pair["company_a_ledgers"]
-            ledgers_b = pair["company_b_ledgers"]
-            logger.info(f"[Run {run_id}] MCP ledger fetch: A={len(ledgers_a)}, B={len(ledgers_b)}")
+                our_side   = await mcp._call_tool("find", {
+                    "collection": "ledgers",
+                    "filter":     {"counterparty_id": company_b_id, "source": "internal_statement"},
+                    "limit":      500,
+                })
+                their_side = await mcp._call_tool("find", {
+                    "collection": "ledgers",
+                    "filter":     {"counterparty_id": company_a_id, "source": {"$regex": "^portal:"}},
+                    "limit":      500,
+                })
+            ledgers_a = [d for d in (our_side   if isinstance(our_side,   list) else [])]
+            ledgers_b = [d for d in (their_side if isinstance(their_side, list) else [])]
+            logger.info(f"[Run {run_id}] MCP fetch: A={len(ledgers_a)}, B={len(ledgers_b)}")
+            if not ledgers_a and not ledgers_b:
+                raise RuntimeError("MCP 0 kayıt döndürdü, motor fallback")
         except Exception as mcp_err:
-            logger.warning(f"[Run {run_id}] MCP unavailable ({type(mcp_err).__name__}: {mcp_err}), falling back to motor.", exc_info=True)
-            all_a = await self.ledger_svc.get_all(company_id=company_a_id)
-            all_b = await self.ledger_svc.get_all(company_id=company_b_id)
-            ledgers_a = [l for l in all_a if str(l.get("counterparty_id")) == str(company_b_id)]
-            ledgers_b = [l for l in all_b if str(l.get("counterparty_id")) == str(company_a_id)]
+            logger.warning(f"[Run {run_id}] MCP unavailable, motor kullanılıyor.")
+            ledgers_a, ledgers_b = [], []
+            async for doc in self.db["ledgers"].find(our_filter):
+                doc["id"] = str(doc.pop("_id", ""))
+                ledgers_a.append(doc)
+            async for doc in self.db["ledgers"].find(their_filter):
+                doc["id"] = str(doc.pop("_id", ""))
+                ledgers_b.append(doc)
+            logger.info(f"[Run {run_id}] Motor: A={len(ledgers_a)}, B={len(ledgers_b)}")
 
-        map_a = {l["transaction_ref"]: l for l in ledgers_a}
-        map_b = {l["transaction_ref"]: l for l in ledgers_b}
+        map_a: dict = {}
+        for l in ledgers_a:
+            ref = l.get("transaction_ref")
+            if not ref:
+                continue
+            if ref not in map_a or abs(float(l.get("amount", 0))) > abs(float(map_a[ref].get("amount", 0))):
+                map_a[ref] = l
+
+        map_b: dict = {}
+        for l in ledgers_b:
+            ref = l.get("transaction_ref")
+            if not ref:
+                continue
+            if ref not in map_b or abs(float(l.get("amount", 0))) > abs(float(map_b[ref].get("amount", 0))):
+                map_b[ref] = l
         all_refs = set(map_a.keys()) | set(map_b.keys())
 
         found = 0
@@ -81,32 +113,53 @@ class ReconciliationEngine:
             if not dtype:
                 continue
 
-            gemini_result = await analyze_discrepancy_adk(
-                company_a, company_b, ref,
-                {"company_a_record": rec_a, "company_b_record": rec_b},
-            )
+            # AI analysis — hata olursa varsayılan metin kullan, discrepancy yine de kaydedilsin
+            try:
+                gemini_result = await analyze_discrepancy_adk(
+                    company_a, company_b, ref,
+                    {"company_a_record": rec_a, "company_b_record": rec_b},
+                )
+            except Exception as ai_err:
+                logger.warning(f"[Run {run_id}] AI analysis failed for {ref}: {ai_err}")
+                gemini_result = {
+                    "analysis": f"Discrepancy detected for transaction {ref}. Manual review required.",
+                    "email_draft": (
+                        f"Subject: Account Reconciliation — {ref}\n\n"
+                        f"Dear {company_b.get('name', 'Team')},\n\n"
+                        f"We have identified a discrepancy for transaction {ref}. "
+                        f"Please review at your earliest convenience.\n\n"
+                        f"Best regards,\n{company_a.get('name', 'Lumina')}"
+                    ),
+                }
 
-            payload = DiscrepancyCreate(
-                company_a_id=company_a_id,
-                company_b_id=company_b_id,
-                ledger_ref=ref,
-                discrepancy_type=dtype,
-                company_a_amount=rec_a["amount"] if rec_a else None,
-                company_b_amount=rec_b["amount"] if rec_b else None,
-                difference=abs(
-                    (rec_a["amount"] if rec_a else 0.0) - (rec_b["amount"] if rec_b else 0.0)
-                ),
-            )
-            disc = await self.disc_svc.create(payload, agent_run_id=run_id)
-            await self.disc_svc.update(
-                disc["id"],
-                DiscrepancyUpdate(
-                    ai_analysis=gemini_result.get("analysis", ""),
-                    email_draft=gemini_result.get("email_draft", ""),
-                    status="awaiting_approval",
-                ),
-            )
-            found += 1
+            try:
+                val_a = float(rec_a["amount"] if rec_a else 0.0)
+                val_b = float(rec_b["amount"] if rec_b else 0.0)
+                
+                calculated_diff = abs(abs(val_a) - abs(val_b))
+
+                payload = DiscrepancyCreate(
+                    company_a_id=company_a_id,
+                    company_b_id=company_b_id,
+                    ledger_ref=ref,
+                    discrepancy_type=dtype,
+                    company_a_amount=val_a,
+                    company_b_amount=val_b,
+                    difference=calculated_diff,
+                )
+                disc = await self.disc_svc.create(payload, agent_run_id=run_id)
+                await self.disc_svc.update(
+                    disc["id"],
+                    DiscrepancyUpdate(
+                        ai_analysis=gemini_result.get("analysis", ""),
+                        email_draft=gemini_result.get("email_draft", ""),
+                        status="awaiting_approval",
+                    ),
+                )
+                found += 1
+                logger.info(f"[Run {run_id}] Discrepancy saved: {ref} ({dtype})")
+            except Exception as db_err:
+                logger.error(f"[Run {run_id}] Failed to save discrepancy for {ref}: {db_err}")
 
         from datetime import datetime
         await self.db["agent_runs"].update_one(
@@ -149,21 +202,14 @@ class ReconciliationEngine:
             logger.warning(f"[Run {run_id}] Embedding generation skipped: {e}")
 
     def _classify(self, rec_a: dict, rec_b: dict) -> str:
-        if not rec_a:
-            return "missing_record"
-        if not rec_b:
+
+        if not rec_a or not rec_b:
             return "missing_record"
             
         amt_a = float(rec_a.get("amount") or 0.0)
         amt_b = float(rec_b.get("amount") or 0.0)
-        
-        if abs(amt_a - amt_b) > 0.01:
-            return "amount_mismatch"
+
+        if abs(amt_a + amt_b) < 0.02:
+            return None
             
-        # Compare dates as ISO strings to avoid tz issues
-        date_a = str(rec_a.get("transaction_date", ""))[:10]
-        date_b = str(rec_b.get("transaction_date", ""))[:10]
-        if date_a != date_b:
-            return "date_mismatch"
-            
-        return None
+        return "amount_mismatch"

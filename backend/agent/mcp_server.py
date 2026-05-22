@@ -32,9 +32,22 @@ _db = None
 
 
 def get_db():
+    # In-process modda app'in mevcut Atlas bağlantısını kullan
+    try:
+        from core.database import get_database
+        db = get_database()
+        if db is not None:
+            return db
+    except Exception:
+        pass
+    # Fallback: standalone subprocess modu için kendi bağlantıyı kur
     global _mongo_client, _db
     if _db is None:
-        _mongo_client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
+        import certifi
+        _mongo_client = motor.motor_asyncio.AsyncIOMotorClient(
+            MONGODB_URI,
+            tlsCAFile=certifi.where(),
+        )
         _db = _mongo_client[MONGODB_DB_NAME]
     return _db
 

@@ -254,10 +254,7 @@ async def ask_lumina(
     user_id: str = "default",
     session_id: str | None = None,
 ) -> str:
-    """
-    Send a message to the Lumina multi-agent system and return the response.
-    Used by gemini_chat.py and reconciliation routes.
-    """
+    runner = _get_runner()  # initialize _session_service + runner
     if not session_id:
         session    = await _session_service.create_session(
             app_name="lumina", user_id=user_id
@@ -265,7 +262,7 @@ async def ask_lumina(
         session_id = session.id
 
     final_text = ""
-    async for event in _get_runner().run_async(
+    async for event in runner.run_async(
         user_id=user_id,
         session_id=session_id,
         new_message=Content(role="user", parts=[Part(text=message)]),

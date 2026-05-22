@@ -1,5 +1,9 @@
 import sys
 import asyncio
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("agent").setLevel(logging.INFO)
+logging.getLogger("services").setLevel(logging.INFO)
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import os

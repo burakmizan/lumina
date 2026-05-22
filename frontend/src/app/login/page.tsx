@@ -1,7 +1,7 @@
 'use client'
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Zap, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -37,37 +37,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-primary flex items-center justify-center p-4">
-      {/* Subtle radial glow behind card */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 flex items-center justify-center"
-        style={{
-          background:
-            'radial-gradient(ellipse 60% 45% at 50% 50%, rgba(41,190,152,0.07) 0%, transparent 70%)',
-        }}
-      />
-
-      <div className="w-full max-w-[400px] relative">
+    <div className="min-h-screen w-full flex bg-white">
+      {/* Left Side: Login Form */}
+      <div className="w-full lg:w-[480px] flex flex-col justify-center px-8 sm:px-12 py-10 z-10 bg-white shadow-[10px_0_30px_-15px_rgba(0,0,0,0.1)] relative">
+        
         {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-10">
-          <div className="w-11 h-11 rounded-2xl bg-accent-green/15 border border-accent-green/25 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-accent-green" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Lumina</h1>
-            <p className="text-[10px] text-text-secondary uppercase tracking-[0.15em]">
-              AI Reconciliation Console
-            </p>
-          </div>
+        <div className="flex items-center gap-2 mb-12">
+          <img src="/lumina.png" alt="Lumina Logo" className="h-11 w-auto object-contain" />
         </div>
 
-        {/* Card */}
-        <div className="bg-surface-secondary border border-surface-border rounded-2xl p-8 shadow-2xl">
-          <h2 className="text-lg font-semibold text-white mb-1">Sign in</h2>
-          <p className="text-sm text-text-secondary mb-7">
-            Access the reconciliation dashboard
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Log in to your account</h2>
+          <p className="text-sm text-slate-500">
+            Enter your credentials to access the AI Reconciliation Console.
           </p>
+        </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username */}
@@ -76,37 +60,37 @@ export default function LoginPage() {
                 Username
               </label>
               <input
-                type="text"
-                autoComplete="username"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="admin"
-                required
-                className="w-full bg-surface-primary border border-surface-border text-white placeholder:text-text-muted rounded-xl px-4 py-3 text-sm outline-none focus:border-accent-green focus:ring-1 focus:ring-accent-green/30 transition-all"
-              />
-            </div>
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="admin"
+              required
+              className="w-full bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#29BE98] focus:ring-1 focus:ring-[#29BE98] transition-all"
+            />
+          </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-[11px] font-medium text-text-secondary uppercase tracking-widest mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full bg-surface-primary border border-surface-border text-white placeholder:text-text-muted rounded-xl px-4 py-3 text-sm outline-none focus:border-accent-green focus:ring-1 focus:ring-accent-green/30 transition-all pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(p => !p)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors p-0.5"
-                  tabIndex={-1}
-                >
+          {/* Password */}
+          <div>
+            <label className="block text-[11px] font-medium text-text-secondary uppercase tracking-widest mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#29BE98] focus:ring-1 focus:ring-[#29BE98] transition-all pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(p => !p)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-0.5"
+                tabIndex={-1}
+              >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
@@ -137,8 +121,8 @@ export default function LoginPage() {
           </form>
 
           {/* Demo creds */}
-          <div className="mt-7 pt-6 border-t border-surface-border">
-            <p className="text-[11px] text-text-muted text-center uppercase tracking-widest mb-3">
+          <div className="mt-7 pt-6 border-t border-slate-200">
+            <p className="text-[11px] text-slate-500 text-center uppercase tracking-widest mb-3">
               Demo credentials
             </p>
             <div className="grid grid-cols-2 gap-2">
@@ -148,19 +132,33 @@ export default function LoginPage() {
               ].map(({ label, value }) => (
                 <div
                   key={label}
-                  className="bg-surface-primary rounded-xl px-4 py-3 border border-surface-border"
+                  className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200"
                 >
-                  <p className="text-[10px] text-text-muted mb-0.5">{label}</p>
-                  <p className="text-sm text-white font-mono">{value}</p>
+                  <p className="text-[10px] text-slate-500 mb-0.5">{label}</p>
+                  <p className="text-sm text-slate-900 font-mono font-medium">{value}</p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-
-        <p className="text-center text-xs text-text-muted mt-6">
+        
+        <p className="text-center text-xs text-slate-400 mt-auto pt-6">
           Powered by Google Gemini · MongoDB Atlas · MCP
         </p>
+      </div>
+
+      {/* Right Side: Visual Banner */}
+      <div className="hidden lg:flex flex-1 relative bg-[#0C1F30] overflow-hidden items-center justify-center">
+        <img 
+          src="/login-bg.jpg"
+          alt="Lumina Background" 
+          className="absolute inset-0 w-full h-full object-cover opacity-70"
+        />
+        
+        <div className="relative z-10 max-w-2xl px-12">
+          <h1 className="text-4xl lg:text-5xl font-bold text-white/90 mb-6 leading-tight whitespace-nowrap drop-shadow-[0_0_30px_rgba(16,185,129,0.65)]">
+  Reconciliation Reinvented.
+</h1>
+        </div>
       </div>
     </div>
   )

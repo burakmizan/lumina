@@ -270,3 +270,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 gcp-credentials.json
+
+frontend/tsconfig.tsbuildinfo

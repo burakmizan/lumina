@@ -32,8 +32,12 @@ class MCPMongoClient:
         if content_list:
             raw = getattr(content_list[0], "text", "[]")
             try:
-                return json.loads(raw)
-            except Exception:
+                result = json.loads(raw)
+                # MCP tool error döndürdüyse exception fırlat → motor fallback tetiklensin
+                if isinstance(result, dict) and "error" in result:
+                    raise RuntimeError(f"MCP tool error: {result['error']}")
+                return result
+            except json.JSONDecodeError:
                 return []
         return []
 

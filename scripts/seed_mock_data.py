@@ -1,14 +1,6 @@
 """
 Lumina Test Data Seeder
 =======================
-Mevcut şirket yapısını bozmadan (TEST Company + Acme Corp International)
-sadece ledger verisi ekler. İki tarafın statement'ları arasında kasıtlı
-uyuşmazlıklar oluşturur — reconciliation agent'ı test etmek için.
-
-Beklenen uyuşmazlıklar:
-  INV-2026-001 — amount_mismatch  (Biz: $50,000 / Onlar: $47,500)
-  PAY-2026-003 — missing_record   (Sadece bizde var, karşı tarafta yok)
-  INV-2026-004 — date_mismatch    (Aynı tutar, farklı tarihler)
 
 Usage:
     cd lumina/backend
@@ -20,8 +12,9 @@ from datetime import datetime, timedelta
 
 import motor.motor_asyncio
 from dotenv import load_dotenv
-
 from pathlib import Path
+from passlib.context import CryptContext
+
 load_dotenv(Path(__file__).parent.parent / "backend" / ".env")
 
 MONGODB_URI     = os.getenv("MONGODB_URI",     "mongodb://localhost:27017")
@@ -51,6 +44,30 @@ def make_ledger(company_id, counterparty_id, ref, amount, tx_type, date, desc, s
 async def seed():
     client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
     db     = client[MONGODB_DB_NAME]
+
+    # ── 0. KULLANICI OLUŞTURMA (demo / lumina2026) ─────────────────────────
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    
+    admin_role = await db.roles.find_one({"name": "System Administrator"})
+    role_id = str(admin_role["_id"]) if admin_role else None
+    
+    demo_user = await db.users.find_one({"username": "demo"})
+    if not demo_user:
+        await db.users.insert_one({
+            "username": "demo",
+            "email": "demo@lumina.ai",
+            "hashed_password": pwd_context.hash("lumina2026"),
+            "role_id": role_id,
+            "is_active": True,
+            "created_at": datetime.utcnow()
+        })
+        print("✅ Kullanıcı oluşturuldu: username='demo' / password='lumina2026'")
+    else:
+        await db.users.update_one(
+            {"username": "demo"},
+            {"$set": {"hashed_password": pwd_context.hash("lumina2026")}}
+        )
+        print("✅ Kullanıcı güncellendi: username='demo' / password='lumina2026'")
 
     # ── 1. Kendi firmanı bul veya oluştur ───────────────────────────────────
     own = await db.companies.find_one({"is_own_company": True})
@@ -112,7 +129,7 @@ async def seed():
     })
     print(f"Temizlendi: {del_a.deleted_count + del_b.deleted_count} ledger, discrepancies silindi.")
 
-    base = datetime(2026, 4, 1)
+    base = datetime(2026, 5, 7)
 
     # ── 4. BİZİM STATEMENT (internal_statement) ──────────────────────────────
     our_ledgers = [
