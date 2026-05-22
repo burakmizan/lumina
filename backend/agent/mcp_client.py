@@ -17,7 +17,7 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 # MCP server is mounted on the same process — use loopback
-_MCP_BASE_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8080/mcp")
+_MCP_BASE_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp")
 
 # Cache probe result — only probe once per process lifetime
 _http_probe_result: bool | None = None

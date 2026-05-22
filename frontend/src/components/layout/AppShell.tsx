@@ -8,9 +8,9 @@ import { useRef, useState, useEffect } from 'react'
 import {
   LayoutDashboard, Users, FileSpreadsheet, AlertTriangle,
   Bell, Plug, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, User,
+  BarChart2,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { AgentIsland } from '@/components/ui/AgentIsland'
 import { GlobalSearch } from '@/components/ui/GlobalSearch'
 import { GeminiPanel } from '@/components/ui/GeminiPanel'
 
@@ -20,6 +20,7 @@ const ALL_NAV = [
   { label: 'Reconciliation List', href: '/reconciliations',  icon: FileSpreadsheet, permission: 'reconciliations.view' },
   { label: 'Discrepancies',       href: '/discrepancies',    icon: AlertTriangle,   permission: 'discrepancies.view' },
   { label: 'Integrations',        href: '/integrations',     icon: Plug,            permission: 'erp_integration.view' },
+  { label: 'Reports',             href: '/reports',          icon: BarChart2,       permission: 'dashboard.view' },
   { label: 'Company Settings',    href: '/settings',         icon: Settings,        permission: 'settings.view' },
 ]
 
@@ -62,20 +63,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-[#F8FAFC] text-gray-900 flex flex-col">
       {/* ── Top Bar ── */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="w-full px-6 h-16 flex items-center gap-4">
-          {/* Logo */}
-          <Link href="/dashboard" className="flex items-center flex-shrink-0 h-10 w-28 relative">
-            <Image
-              src="/lumina.png"
-              alt="Lumina Logo"
-              fill
-              className="object-contain object-left"
-              priority
-            />
-          </Link>
+        <div className="w-full px-6 h-16 flex items-center justify-between">
+          
+          {/* Logo (Sol Taraf) */}
+          <div className="flex-1 flex justify-start">
+            <Link href="/dashboard" className="flex items-center flex-shrink-0 h-10 w-28 relative">
+              <Image
+                src="/lumina.png"
+                alt="Lumina Logo"
+                fill
+                className="object-contain object-left"
+                priority
+              />
+            </Link>
+          </div>
 
-          {/* Navigation */}
-          <div className="hidden md:flex items-center flex-1 min-w-0 justify-center gap-1">
+          {/* Navigation (Orta) */}
+          <div className="hidden md:flex items-center justify-center gap-2 overflow-hidden max-w-[1000px] px-4">
             <button
               onClick={() => scrollNav('left')}
               className="flex-shrink-0 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
@@ -114,8 +118,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-2 flex-shrink-0 w-44 justify-end ml-auto">
+          {/* Right Actions (Sağ Taraf) */}
+          <div className="flex-1 flex items-center gap-2 justify-end">
             {/* User / Settings dropdown */}
             <div className="relative" ref={settingsRef}>
               <button
@@ -199,7 +203,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
-      <AgentIsland />
       <GeminiPanel />
     </div>
   )

@@ -30,14 +30,14 @@ function CreatedKeyModal({ integration, onClose }: { integration: ErpIntegration
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#16293A] border border-[#29BE98]/30 rounded-2xl w-full max-w-[520px] shadow-2xl">
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
+      <div className="bg-white border border-[#29BE98]/30 rounded-2xl w-full max-w-[520px] shadow-2xl">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-200">
           <div className="w-10 h-10 rounded-xl bg-[#29BE98]/15 border border-[#29BE98]/25 flex items-center justify-center flex-shrink-0">
             <KeyRound className="w-5 h-5 text-[#29BE98]" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-white">API Key Generated</h2>
-            <p className="text-xs text-[#94A3B8] mt-0.5">Save this key now — it will not be shown again.</p>
+            <h2 className="text-sm font-bold text-slate-900">API Key Generated</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Save this key now — it will not be shown again.</p>
           </div>
         </div>
 
@@ -45,7 +45,7 @@ function CreatedKeyModal({ integration, onClose }: { integration: ErpIntegration
           {/* Warning */}
           <div className="flex items-start gap-2.5 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
             <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-300 leading-relaxed">
+            <p className="text-xs text-amber-700 leading-relaxed">
               This API key is shown <strong>exactly once</strong>. Copy and store it securely
               (e.g., in a password manager or secrets vault). You can always regenerate a new key
               via the "Download Agent Package" button, which invalidates the previous key.
@@ -54,9 +54,9 @@ function CreatedKeyModal({ integration, onClose }: { integration: ErpIntegration
 
           {/* Key display */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-semibold text-[#64748B] uppercase tracking-widest">API Key — {integration.name}</label>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">API Key — {integration.name}</label>
             <div className="flex items-center gap-2">
-              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-[#0C1F30] border border-white/10 rounded-xl font-mono text-sm text-white overflow-hidden">
+              <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 overflow-hidden">
                 <span className="truncate">{revealed ? integration.api_key : '•'.repeat(44)}</span>
               </div>
               <button
@@ -84,8 +84,8 @@ function CreatedKeyModal({ integration, onClose }: { integration: ErpIntegration
 
           {/* Tracker ID */}
           <div>
-            <label className="text-[10px] font-semibold text-[#64748B] uppercase tracking-widest">Tracker ID</label>
-            <p className="mt-1 px-3 py-2 bg-[#0C1F30] border border-white/5 rounded-xl font-mono text-xs text-[#94A3B8]">{integration.tracker_id}</p>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Tracker ID</label>
+            <p className="mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-600">{integration.tracker_id}</p>
           </div>
         </div>
 
@@ -117,19 +117,19 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[440px] shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[440px] shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <Plus className="w-4 h-4 text-[#29BE98]" />
-            <h2 className="text-sm font-semibold text-white">New ERP Integration</h2>
+            <h2 className="text-sm font-semibold text-slate-900">New ERP Integration</h2>
           </div>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-[11px] uppercase tracking-widest text-[#64748B] mb-1.5">Integration Name *</label>
+            <label className="block text-[11px] uppercase tracking-widest text-slate-500 mb-1.5">Integration Name *</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -138,7 +138,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             />
           </div>
           <div>
-            <label className="block text-[11px] uppercase tracking-widest text-[#64748B] mb-1.5">Description (optional)</label>
+            <label className="block text-[11px] uppercase tracking-widest text-slate-500 mb-1.5">Description (optional)</label>
             <textarea
               value={desc}
               onChange={e => setDesc(e.target.value)}
@@ -181,21 +181,21 @@ function DeleteConfirmModal({ name, onConfirm, onClose, isDeleting }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[400px] shadow-2xl p-6">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[400px] shadow-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
             <Trash2 className="w-5 h-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">Revoke Integration</h3>
-            <p className="text-xs text-[#94A3B8] mt-0.5">Delete &quot;{name}&quot; permanently?</p>
+            <h3 className="text-sm font-semibold text-slate-900">Revoke Integration</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Delete &quot;{name}&quot; permanently?</p>
           </div>
         </div>
-        <p className="text-xs text-[#94A3B8] mb-5 leading-relaxed">
+        <p className="text-xs text-slate-500 mb-5 leading-relaxed">
           This revokes the API key and removes the integration record. Any local agent using this key will stop syncing immediately.
         </p>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm text-[#94A3B8] hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors">Cancel</button>
           <button onClick={onConfirm} disabled={isDeleting} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors">
             {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
             Revoke

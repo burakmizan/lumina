@@ -929,6 +929,7 @@ export default function ReconciliationsPage() {
     queryFn: getCompanies,
   })
   const ownCompany = companies.find((c: { is_own_company: boolean }) => c.is_own_company)
+    ?? (companies as { id: string; is_own_company: boolean }[])[0]
 
   const { data: discrepancies = [] } = useQuery<Discrepancy[]>({
     queryKey: ['discrepancies'],
@@ -941,7 +942,7 @@ export default function ReconciliationsPage() {
       acc[d.company_b_id] = d.discrepancy_type
     }
     return acc
-  }, {}) || companies[0]
+  }, {})
 
   // Keep selection clean
   useEffect(() => {
@@ -979,31 +980,31 @@ export default function ReconciliationsPage() {
   }
 
   async function handleRunAgent(record: MasterBalance) {
-    console.log("⚡ Mor Zap butonuna basıldı. Firma:", record.company_name, "Kendi Şirketimiz:", ownCompany);
-    
-    if (!record.counterparty_id || !ownCompany?.id) {
-      console.error("❌ HATA: counterparty_id veya ownCompany.id eksik olduğundan buton kilitlendi!");
-      alert(`Hata: ${!record.counterparty_id ? 'Karşı taraf şirket ID\'si eksik' : 'Kendi şirketinizin (Own Company) ID\'si bulunamadı'}`);
-      return
-    }
-    
-    setRunningId(record.id)
+    console.log("⚡ Mor Zap butonuna basıldı. Firma:", record.company_name, "Kendi Şirketimiz:", ownCompany);
+    
+    if (!record.counterparty_id || !ownCompany?.id) {
+      console.error('[triggerRecon] Missing counterparty_id or own company ID')
+      return
+    }
+
+    setRunningId(record.id)
     try {
       const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
       if (res?.run_id) {
-        fireAgentIsland(res.run_id)
-        
-        qc.invalidateQueries({ queryKey: ['master-balances'] })
-        qc.invalidateQueries({ queryKey: ['discrepancies'] })
+        fireAgentIsland(res.run_id)   // API hemen döner, AgentIsland anında açılır
+        setTimeout(() => {
+          qc.invalidateQueries({ queryKey: ['master-balances'] })
+          qc.invalidateQueries({ queryKey: ['discrepancies'] })
+        }, 3000)
       }
     } catch (err) {
-      console.error("❌ Agent tetiklenirken hata oluştu:", err)
+      console.error('[triggerRecon] Agent trigger failed:', err)
     } finally {
       setRunningId(null)
     }
-  }
+  } // <-- Eksik olan süslü parantez eklendi ve fazladan if satırı silindi
 
-  function ctxItems(record: MasterBalance): CtxItem[] {
+  function ctxItems(record: MasterBalance): CtxItem[] {
     const items: CtxItem[] = []
     if (record.reconciliation_status !== 'ready_for_external') {
       items.push({ icon: <FileUp className="w-3.5 h-3.5" />, label: 'Upload Statement', onClick: () => setUploadRecord(record) })

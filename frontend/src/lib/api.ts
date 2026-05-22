@@ -70,6 +70,8 @@ export const getLedgers = (params?: Record<string, string>) =>
   api.get('/api/v1/ledgers/', { params }).then(r => r.data)
 
 // ── Discrepancies ─────────────────────────────────────────────────────────────
+export const getAgentRuns = (limit = 50) =>
+  api.get(`/api/v1/reconciliation/runs?limit=${limit}`).then(r => r.data)
 export const getDiscrepancies = (params?: Record<string, string>) =>
   api.get('/api/v1/discrepancies/', { params }).then(r => r.data)
 

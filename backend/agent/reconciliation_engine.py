@@ -42,6 +42,7 @@ class ReconciliationEngine:
             "started_at":     datetime.utcnow(),
             "completed_at":   None,
             "error":          None,
+            "steps":          [],
         })
 
         await self.db["agent_runs"].update_many(
@@ -54,6 +55,7 @@ class ReconciliationEngine:
             {"$set": {"status": "cancelled", "completed_at": datetime.utcnow()}}
         )
 
+        await self._log_step(run_id, "loading_companies", "Loading company profiles from MongoDB via MCP...")
         company_a = await self.company_svc.get_by_id(company_a_id)
         company_b = await self.company_svc.get_by_id(company_b_id)
         if not company_a or not company_b:
@@ -90,6 +92,8 @@ class ReconciliationEngine:
             ledgers_a = [d for d in (our_side   if isinstance(our_side,   list) else [])]
             ledgers_b = [d for d in (their_side if isinstance(their_side, list) else [])]
             logger.info(f"[Run {run_id}] MCP fetch: A={len(ledgers_a)}, B={len(ledgers_b)}")
+            await self._log_step(run_id, "fetching_ledgers",
+                f"Fetching ledger records via MCP: {company_a.get('name','A')} ({len(ledgers_a)} records) ↔ {company_b.get('name','B')} ({len(ledgers_b)} records)")
             if not ledgers_a and not ledgers_b:
                 raise RuntimeError("MCP 0 kayıt döndürdü, motor fallback")
         except Exception as mcp_err:
@@ -102,6 +106,12 @@ class ReconciliationEngine:
                 doc["id"] = str(doc.pop("_id", ""))
                 ledgers_b.append(doc)
             logger.info(f"[Run {run_id}] Motor: A={len(ledgers_a)}, B={len(ledgers_b)}")
+            await self._log_step(run_id, "fetching_ledgers",
+                f"Ledger records fetched (motor fallback): {len(ledgers_a)} + {len(ledgers_b)} records")
+
+            all_refs = set(d.get("transaction_ref") for d in ledgers_a + ledgers_b if d.get("transaction_ref"))
+            await self._log_step(run_id, "comparing_records",
+                    f"Comparing {len(all_refs)} unique transaction references by ledger_ref...")
 
         check_run = await self.db["agent_runs"].find_one({"_id": run_id})
         if check_run and check_run.get("status") == "cancelled":
@@ -167,6 +177,8 @@ class ReconciliationEngine:
                     ),
                 }
 
+            await self._log_step(run_id, "analyzing_discrepancy",
+                f"AI analyzing {dtype}: {ref} — ReconciliationAgent → AnalysisAgent → CommunicationAgent")
             try:
                 val_a = float(rec_a["amount"] if rec_a else 0.0)
                 val_b = float(rec_b["amount"] if rec_b else 0.0)
@@ -196,6 +208,8 @@ class ReconciliationEngine:
             except Exception as db_err:
                 logger.error(f"[Run {run_id}] Failed to save discrepancy for {ref}: {db_err}")
 
+        await self._log_step(run_id, "complete",
+            f"Reconciliation complete — {found} discrepanc{'y' if found == 1 else 'ies'} found and saved to MongoDB")
         from datetime import datetime
         await self.db["agent_runs"].update_one(
             {"_id": run_id},
@@ -216,6 +230,20 @@ class ReconciliationEngine:
         await self._generate_embeddings(run_id)
         logger.info(f"[Run {run_id}] Reconciliation complete — {found} discrepancies detected.")
         return run_id
+
+    async def _log_step(self, run_id: str, step_type: str, message: str):
+        """Append a step to the agent_run document for real-time UI tracking."""
+        from datetime import datetime
+        step = {
+            "type":      step_type,
+            "message":   message,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        await self.db["agent_runs"].update_one(
+            {"_id": run_id},
+            {"$push": {"steps": step}}
+        )
+        logger.info(f"[Run {run_id}] ▶ {message}")
 
     async def _generate_embeddings(self, run_id: str):
         try:
@@ -239,6 +267,8 @@ class ReconciliationEngine:
                     {"_id": doc["_id"]},
                     {"$set": {"embedding": result["embedding"]}},
                 )
+            await self._log_step(run_id, "generating_embeddings",
+                "Generating vector embeddings for Atlas Vector Search...")
             logger.info(f"[Run {run_id}] Embeddings generated for vector search.")
         except Exception as e:
             logger.warning(f"[Run {run_id}] Embedding generation skipped: {e}")
