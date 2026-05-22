@@ -105,6 +105,19 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="vector_search",
+            description="Semantic similarity search on discrepancies using MongoDB Atlas Vector Search",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query_text": {"type": "string", "description": "Natural language query to search for similar discrepancies"},
+                    "limit":      {"type": "integer", "default": 5},
+                    "min_score":  {"type": "number",  "default": 0.65},
+                },
+                "required": ["query_text"],
+            },
+        ),
+        Tool(
             name="update_one",
             description="Update a document in a MongoDB collection",
             inputSchema={
@@ -164,6 +177,43 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "upserted_id":    str(result.upserted_id) if result.upserted_id else None,
             }))]
 
+        elif name == "vector_search":
+            query_text = arguments.get("query_text", "")
+            limit      = int(arguments.get("limit", 5))
+            min_score  = float(arguments.get("min_score", 0.65))
+            try:
+                import os
+                import google.generativeai as genai
+                genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
+                result = genai.embed_content(
+                    model="models/text-embedding-004",
+                    content=query_text,
+                    task_type="retrieval_query",
+                )
+                embedding = result["embedding"]
+                pipeline = [
+                    {
+                        "$vectorSearch": {
+                            "index":         "discrepancy_vector_index",
+                            "path":          "embedding",
+                            "queryVector":   embedding,
+                            "numCandidates": limit * 10,
+                            "limit":         limit,
+                        }
+                    },
+                    {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
+                    {"$match":     {"score": {"$gte": min_score}}},
+                    {"$project":   {"embedding": 0}},  # don't return the big vector
+                ]
+                results = []
+                async for doc in db["discrepancies"].aggregate(pipeline):
+                    if "_id" in doc:
+                        doc["_id"] = str(doc["_id"])
+                    results.append(_serialize(doc))
+                return [TextContent(type="text", text=json.dumps(results))]
+            except Exception as exc:
+                return [TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+
         else:
             return [TextContent(type="text", text=json.dumps({"error": f"Unknown tool: {name}"}))]
 
@@ -178,6 +228,49 @@ async def main():
             write_stream,
             app.create_initialization_options(),
         )
+
+
+# ── HTTP/SSE Transport (FastAPI mount) ────────────────────────────────────────
+
+def create_mcp_asgi_app():
+    """
+    Raw ASGI app — bypasses Starlette Route response wrapping entirely.
+    Serves MCP over HTTP/SSE transport at /sse and /messages/.
+    """
+    from mcp.server.sse import SseServerTransport
+    from starlette.requests import Request
+
+    sse = SseServerTransport("/mcp/messages/")
+
+    async def handle_sse(request: Request):
+        async with sse.connect_sse(
+            request.scope, request.receive, request._send
+        ) as streams:
+            await app.run(
+                streams[0], streams[1], app.create_initialization_options()
+            )
+
+    class _MCPApp:
+        """Minimal ASGI app — no Starlette middleware, no double-response errors."""
+        async def __call__(self, scope, receive, send):
+            if scope["type"] != "http":
+                return
+            path   = scope.get("path", "")
+            method = scope.get("method", "GET")
+
+            if path.endswith("/sse") and method == "GET":
+                request = Request(scope, receive, send)
+                await handle_sse(request)
+
+            elif path.rstrip("/").endswith("/messages") and method == "POST":
+                await sse.handle_post_message(scope, receive, send)
+
+            else:
+                await send({"type": "http.response.start", "status": 404,
+                            "headers": [[b"content-type", b"text/plain"]]})
+                await send({"type": "http.response.body", "body": b"Not found"})
+
+    return _MCPApp()
 
 
 if __name__ == "__main__":

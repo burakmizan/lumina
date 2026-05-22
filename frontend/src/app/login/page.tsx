@@ -128,7 +128,7 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Username', value: 'admin' },
-                { label: 'Password', value: 'lumina2024' },
+                { label: 'Password', value: 'lumina2026' },
               ].map(({ label, value }) => (
                 <div
                   key={label}

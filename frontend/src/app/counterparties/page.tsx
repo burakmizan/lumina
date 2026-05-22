@@ -6,7 +6,7 @@ import {
   PlayCircle, CheckCircle2, AlertCircle, Pencil,
   FolderOpen, X, FileSpreadsheet, FileText, Loader2,
   Trash2, Download, Send, Eye, Phone, Upload, FileDown,
-  Activity, UserCheck, UserX, GitBranch,
+  Activity, UserCheck, UserX, GitBranch, Plus,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { Toast } from '@/components/ui/Toast'
@@ -107,28 +107,7 @@ function BulkActionBar({ count, onDelete, onClear, isDeleting, onSend, isSending
 }) {
   if (count === 0) return null
   return (
-    <div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 overflow-hidden shadow-2xl"
-      style={{ borderRadius: '20px', padding: '2px' }}
-    >
-      {/* Spinning gradient border */}
-      <div
-        className="animate-spin pointer-events-none"
-        style={{
-          position: 'absolute',
-          width: '500px',
-          height: '500px',
-          top: '50%',
-          left: '50%',
-          marginLeft: '-250px',
-          marginTop: '-250px',
-          background: 'conic-gradient(from 0deg, #00D4FF 0%, #00E676 30%, #AEEA00 55%, #00E676 80%, #00D4FF 100%)',
-          animationDuration: '4s',
-          animationTimingFunction: 'linear',
-        }}
-      />
-      {/* Content */}
-      <div className="relative flex items-center gap-3 px-5 py-3 bg-white rounded-[18px]">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white border border-slate-200 rounded-[32px] shadow-2xl">
         <span className="text-sm font-medium text-slate-900">
           <span className="text-[#29BE98] font-bold">{count}</span> selected
         </span>
@@ -156,7 +135,6 @@ function BulkActionBar({ count, onDelete, onClear, isDeleting, onSend, isSending
         <button onClick={onClear} className="p-1.5 text-slate-400 hover:text-slate-700 transition-colors rounded-lg hover:bg-slate-100">
           <X className="w-4 h-4" />
         </button>
-      </div>
     </div>
   )
 }
@@ -168,18 +146,18 @@ function DeleteConfirmModal({ title, description, onConfirm, onClose, isDeleting
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[420px] shadow-2xl p-6">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[420px] shadow-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
             <Trash2 className="w-5 h-5 text-red-400" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            <p className="text-xs text-[#94A3B8] mt-0.5">{description}</p>
+            <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">{description}</p>
           </div>
         </div>
         <div className="flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/10 text-sm text-[#94A3B8] hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors">Cancel</button>
           <button onClick={onConfirm} disabled={isDeleting} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50">
             {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}Delete Permanently
           </button>
@@ -198,15 +176,15 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
   const isActive = company.status === 'active'
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[540px] shadow-2xl">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[540px] shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/20 flex items-center justify-center flex-shrink-0">
               <Building2 className="w-5 h-5 text-[#2597F8]" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-base font-bold text-white truncate">{company.name}</h2>
+              <h2 className="text-base font-bold text-slate-900 truncate">{company.name}</h2>
               <span className={cn(
                 'inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border mt-0.5',
                 isActive ? 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20' : 'bg-slate-500/10 text-slate-400 border-slate-500/20',
@@ -216,7 +194,7 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors flex-shrink-0">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -231,9 +209,9 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
               { label: 'Primary Email', value: company.reconciliation_email, mono: false },
               { label: 'Contact Name', value: company.contact_name, mono: false },
             ].map(({ label, value, mono }) => (
-              <div key={label} className="bg-[#0C1F30] rounded-xl p-3 border border-white/5">
-                <p className="text-[10px] uppercase tracking-widest text-[#64748B] mb-1">{label}</p>
-                <p className={cn('text-sm text-white truncate', mono && 'font-mono')}>{value}</p>
+              <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">{label}</p>
+                <p className={cn('text-sm text-slate-900 truncate', mono && 'font-mono')}>{value}</p>
               </div>
             ))}
           </div>
@@ -243,11 +221,11 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Phone className="w-3.5 h-3.5 text-[#29BE98]" />
-                <p className="text-[11px] uppercase tracking-widest text-[#64748B] font-medium">Phone Numbers ({company.phones.length})</p>
+                <p className="text-[11px] uppercase tracking-widest text-slate-500 font-medium">Phone Numbers ({company.phones.length})</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {company.phones.map((phone, idx) => (
-                  <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0C1F30] border border-white/10 rounded-lg text-sm text-white font-mono">
+                  <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 font-mono">
                     <Phone className="w-3 h-3 text-[#29BE98]" />
                     {phone}
                   </span>
@@ -261,13 +239,13 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Mail className="w-3.5 h-3.5 text-[#2597F8]" />
-                <p className="text-[11px] uppercase tracking-widest text-[#64748B] font-medium">Email Addresses ({company.emails.length})</p>
+                <p className="text-[11px] uppercase tracking-widest text-slate-500 font-medium">Email Addresses ({company.emails.length})</p>
               </div>
               <div className="flex flex-col gap-1.5">
                 {company.emails.map((email, idx) => (
-                  <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-[#0C1F30] border border-white/10 rounded-lg">
+                  <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <Mail className="w-3 h-3 text-[#2597F8] flex-shrink-0" />
-                    <span className="text-sm text-white truncate">{email}</span>
+                    <span className="text-sm text-slate-900 truncate">{email}</span>
                     {idx === 0 && (
                       <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20 rounded font-medium flex-shrink-0">Primary</span>
                     )}
@@ -278,7 +256,7 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
           )}
 
           {/* Meta */}
-          <div className="flex items-center gap-4 text-[11px] text-[#64748B] pt-1 border-t border-white/5">
+          <div className="flex items-center gap-4 text-[11px] text-slate-500 pt-1 border-t border-slate-100">
             <span>Created {formatDate(company.created_at)}</span>
             <span>·</span>
             <span>Updated {formatDate(company.updated_at)}</span>
@@ -287,10 +265,10 @@ function ProfileModal({ company, onClose, onEdit, onDocs, onSend }: {
 
         {/* Footer actions */}
         <div className="px-6 pb-5 flex items-center gap-2">
-          <button onClick={() => { onEdit(); onClose() }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-[#94A3B8] hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors">
+          <button onClick={() => { onEdit(); onClose() }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
             <Pencil className="w-3.5 h-3.5" />Edit
           </button>
-          <button onClick={() => { onDocs(); onClose() }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-[#94A3B8] hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors">
+          <button onClick={() => { onDocs(); onClose() }} className="flex items-center gap-1.5 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
             <FolderOpen className="w-3.5 h-3.5" />Docs
           </button>
           <button onClick={() => { onSend(); onClose() }} disabled={!isActive} className={cn(
@@ -311,66 +289,166 @@ interface EditForm {
   name: string
   reconciliation_email: string
   contact_name: string
+  phones: string[]
+  emails: string[]
 }
 
 function EditModal({ company, onClose, onSaved }: { company: Company; onClose: () => void; onSaved: () => void }) {
   const qc = useQueryClient()
   const [form, setForm] = useState<EditForm>({
-    name: company.name,
+    name:                 company.name,
     reconciliation_email: company.reconciliation_email,
-    contact_name: company.contact_name,
+    contact_name:         company.contact_name,
+    phones: company.phones?.length ? [...company.phones] : [''],
+    emails: company.emails?.length ? [...company.emails] : [''],
   })
 
   const mutation = useMutation({
-    mutationFn: () => updateCompany(company.id, form),
+    mutationFn: () => updateCompany(company.id, {
+      ...form,
+      phones: form.phones.filter(p => p.trim()),
+      emails: form.emails.filter(e => e.trim()),
+    }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['companies'] }); onSaved() },
   })
 
+  const setPhone  = (i: number, v: string) => setForm(f => { const a = [...f.phones]; a[i] = v; return { ...f, phones: a } })
+  const delPhone  = (i: number)            => setForm(f => ({ ...f, phones: f.phones.filter((_, x) => x !== i) }))
+  const addPhone  = ()                     => setForm(f => ({ ...f, phones: [...f.phones, ''] }))
+  const setEmail  = (i: number, v: string) => setForm(f => { const a = [...f.emails]; a[i] = v; return { ...f, emails: a } })
+  const delEmail  = (i: number)            => setForm(f => ({ ...f, emails: f.emails.filter((_, x) => x !== i) }))
+  const addEmail  = ()                     => setForm(f => ({ ...f, emails: [...f.emails, ''] }))
+
+  const LABEL = 'block text-[11px] uppercase tracking-widest text-slate-500 mb-1.5'
+  const INPUT = 'w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2597F8]/50 placeholder:text-slate-400 transition-colors'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[460px] shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[620px] shadow-2xl flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Pencil className="w-4 h-4 text-[#2597F8]" />
-            <h2 className="text-sm font-semibold text-white">Edit Counterparty</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Edit Counterparty</h2>
           </div>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="px-6 py-5 space-y-4">
-          {[
-            { label: 'Company Name',     field: 'name'                  as const, placeholder: 'Legal company name' },
-            { label: 'Accounting Email', field: 'reconciliation_email'  as const, placeholder: 'accounting@company.com' },
-            { label: 'Contact Name',     field: 'contact_name'          as const, placeholder: 'Full name' },
-          ].map(({ label, field, placeholder }) => (
-            <div key={field}>
-              <label className="block text-[11px] uppercase tracking-widest text-[#64748B] mb-1.5">{label}</label>
-              <input
-                value={form[field]}
-                onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                className="w-full px-3 py-2.5 bg-[#0C1F30] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#2597F8]/50 placeholder:text-[#64748B] transition-colors"
-                placeholder={placeholder}
-              />
+
+        {/* Scrollable body */}
+        <div className="px-6 py-5 space-y-5 overflow-y-auto">
+
+          {/* Basic fields — 2 col grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className={LABEL}>Company Name</label>
+              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={INPUT} placeholder="Legal company name" />
             </div>
-          ))}
-          <div>
-            <label className="block text-[11px] uppercase tracking-widest text-[#64748B] mb-1.5">Tax ID / EIN / VAT Number</label>
-            <input value={company.tax_id} readOnly className="w-full px-3 py-2.5 bg-[#0C1F30]/50 border border-white/5 rounded-xl text-sm text-[#64748B] cursor-not-allowed" />
-            <p className="text-[10px] text-[#64748B] mt-1">Tax ID cannot be changed after creation.</p>
+            <div>
+              <label className={LABEL}>Accounting Email</label>
+              <input value={form.reconciliation_email} onChange={e => setForm(f => ({ ...f, reconciliation_email: e.target.value }))} className={INPUT} placeholder="accounting@company.com" />
+            </div>
+            <div>
+              <label className={LABEL}>Contact Name</label>
+              <input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))} className={INPUT} placeholder="Full name" />
+            </div>
+            <div className="col-span-2">
+              <label className={LABEL}>Tax ID / EIN / VAT Number</label>
+              <input value={company.tax_id} readOnly className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-400 cursor-not-allowed" />
+              <p className="text-[10px] text-slate-400 mt-1">Tax ID cannot be changed after creation.</p>
+            </div>
           </div>
+
+          {/* Phone Numbers */}
+          <div>
+            <label className={LABEL}>Phone Numbers</label>
+            <div className="flex flex-wrap gap-2">
+              {form.phones.map((phone, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 min-w-[200px] flex-1">
+                  <div className="relative flex-1">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      value={phone}
+                      onChange={e => setPhone(idx, e.target.value)}
+                      placeholder="+1-555-000-0000"
+                      className="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2597F8]/50 placeholder:text-slate-400 transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={() => delPhone(idx)}
+                    title="Remove"
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addPhone} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#2597F8] hover:opacity-75 transition-opacity">
+              <Plus className="w-3.5 h-3.5" /> Add Phone Number
+            </button>
+          </div>
+
+          {/* Email Addresses */}
+          <div>
+            <label className={LABEL}>Email Addresses</label>
+            <div className="flex flex-wrap gap-2">
+              {form.emails.map((email, idx) => (
+                <div key={idx} className="flex items-center gap-1.5 min-w-[240px] flex-1">
+                  <div className="relative flex-1">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      value={email}
+                      onChange={e => setEmail(idx, e.target.value)}
+                      placeholder="email@company.com"
+                      className="w-full pl-8 pr-16 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#2597F8]/50 placeholder:text-slate-400 transition-colors"
+                    />
+                    {idx === 0 && (
+                      <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] px-1.5 py-0.5 bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20 rounded font-medium pointer-events-none">
+                        Primary
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => delEmail(idx)}
+                    disabled={idx === 0 && form.emails.length === 1}
+                    title="Remove"
+                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addEmail} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-[#2597F8] hover:opacity-75 transition-opacity">
+              <Plus className="w-3.5 h-3.5" /> Add Email Address
+            </button>
+          </div>
+
         </div>
-        {mutation.isError && <p className="px-6 pb-2 text-xs text-red-400">Failed to save changes. Please try again.</p>}
-        <div className="px-6 pb-5 flex items-center justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-[#94A3B8] hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors">Cancel</button>
+
+        {mutation.isError && (
+          <p className="px-6 pb-1 text-xs text-red-400 flex-shrink-0">Failed to save changes. Please try again.</p>
+        )}
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 flex-shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
+            Cancel
+          </button>
           <button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending || !form.name.trim()}
             className="px-4 py-2 text-sm font-semibold bg-[#2597F8] hover:bg-[#2597F8]/90 disabled:opacity-40 text-white rounded-xl transition-colors flex items-center gap-2"
           >
-            {mutation.isPending ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</> : 'Save Changes'}
+            {mutation.isPending
+              ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving…</>
+              : 'Save Changes'}
           </button>
         </div>
+
       </div>
     </div>
   )
@@ -579,28 +657,28 @@ function DocsModal({ company, onClose }: { company: Company; onClose: () => void
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#16293A] border border-white/10 rounded-2xl w-full max-w-[560px] shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-[560px] shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200">
           <div className="flex items-center gap-2 min-w-0">
             <FolderOpen className="w-4 h-4 text-[#2597F8] flex-shrink-0" />
-            <h2 className="text-sm font-semibold text-white">Documents</h2>
-            <span className="text-xs text-[#94A3B8] truncate">— {company.name}</span>
+            <h2 className="text-sm font-semibold text-slate-900">Documents</h2>
+            <span className="text-xs text-slate-500 truncate">— {company.name}</span>
           </div>
-          <button onClick={onClose} className="text-[#94A3B8] hover:text-white p-1.5 rounded-lg hover:bg-white/5 transition-colors flex-shrink-0 ml-3">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0 ml-3">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex border-b border-white/10 px-6">
+        <div className="flex border-b border-slate-200 px-6">
           {([
             { key: 'sessions',   label: 'Portal Uploads',     count: sessions.length },
             { key: 'statements', label: 'Internal Statements', count: stmtFiles.length },
           ] as const).map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)} className={cn(
               'flex items-center gap-2 px-1 py-3 text-xs font-medium border-b-2 mr-6 transition-colors',
-              activeTab === tab.key ? 'border-[#29BE98] text-[#29BE98]' : 'border-transparent text-[#94A3B8] hover:text-white',
+              activeTab === tab.key ? 'border-[#29BE98] text-[#29BE98]' : 'border-transparent text-slate-500 hover:text-slate-900',
             )}>
               {tab.label}
-              <span className="px-1.5 py-0.5 rounded bg-white/5 text-[10px]">{tab.count}</span>
+              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px]">{tab.count}</span>
             </button>
           ))}
         </div>
@@ -615,11 +693,11 @@ function DocsModal({ company, onClose }: { company: Company; onClose: () => void
             <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 text-[#2597F8] animate-spin" /></div>
           ) : isEmpty ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-10 h-10 rounded-xl bg-[#0C1F30] border border-white/10 flex items-center justify-center mb-3">
-                <FolderOpen className="w-5 h-5 text-[#64748B]" />
+              <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-3">
+                <FolderOpen className="w-5 h-5 text-slate-400" />
               </div>
-              <p className="text-sm font-medium text-white mb-1">No documents yet</p>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-sm font-medium text-slate-900 mb-1">No documents yet</p>
+              <p className="text-xs text-slate-500">
                 {activeTab === 'sessions' ? 'Send a reconciliation invite to request a ledger upload.' : 'Upload an internal statement via the Reconciliation List.'}
               </p>
             </div>
@@ -632,13 +710,13 @@ function DocsModal({ company, onClose }: { company: Company; onClose: () => void
                 const isDl = downloadingId === session.id
                 const isDel = deletingId === session.id
                 return (
-                  <div key={session.id} className="flex items-center gap-3 p-3 bg-[#0C1F30] rounded-xl border border-white/10">
-                    <div className="w-8 h-8 rounded-lg bg-[#16293A] border border-white/10 flex items-center justify-center flex-shrink-0">
+                  <div key={session.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center flex-shrink-0">
                       {isPdf ? <FileText className="w-4 h-4 text-red-400" /> : <FileSpreadsheet className="w-4 h-4 text-[#29BE98]" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white truncate">{session.filename ?? 'Ledger upload'}</p>
-                      <div className="flex items-center gap-2 text-xs text-[#94A3B8] mt-0.5 flex-wrap">
+                      <p className="text-sm font-medium text-slate-900 truncate">{session.filename ?? 'Ledger upload'}</p>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 flex-wrap">
                         {session.uploaded_at && <span>{formatDate(session.uploaded_at)}</span>}
                         {session.parsed_ledger_count > 0 && <><span>·</span><span className="text-[#29BE98]">{session.parsed_ledger_count} records</span></>}
                         <span>·</span>

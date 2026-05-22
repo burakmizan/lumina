@@ -44,6 +44,16 @@ class ReconciliationEngine:
             "error":          None,
         })
 
+        await self.db["agent_runs"].update_many(
+            {
+                "company_a_id": company_a_id,
+                "company_b_id": company_b_id,
+                "status": "running",
+                "_id": {"$ne": run_id}
+            },
+            {"$set": {"status": "cancelled", "completed_at": datetime.utcnow()}}
+        )
+
         company_a = await self.company_svc.get_by_id(company_a_id)
         company_b = await self.company_svc.get_by_id(company_b_id)
         if not company_a or not company_b:
@@ -53,6 +63,11 @@ class ReconciliationEngine:
                 {"$set": {"status": "failed", "error": "companies_not_found", "completed_at": datetime.utcnow()}},
             )
             return run_id
+
+        await self.db["discrepancies"].delete_many({
+            "company_a_id": company_a_id,
+            "company_b_id": company_b_id
+        })
 
         import re
         # Bizim kayıtlarımız: internal_statement kaynaklı ve karşı firmaya ait olanlar
@@ -88,6 +103,11 @@ class ReconciliationEngine:
                 ledgers_b.append(doc)
             logger.info(f"[Run {run_id}] Motor: A={len(ledgers_a)}, B={len(ledgers_b)}")
 
+        check_run = await self.db["agent_runs"].find_one({"_id": run_id})
+        if check_run and check_run.get("status") == "cancelled":
+            logger.info(f"[Run {run_id}] Overtaken by a newer manual trigger. Aborting gracefully.")
+            return run_id
+
         map_a: dict = {}
         for l in ledgers_a:
             ref = l.get("transaction_ref")
@@ -105,15 +125,30 @@ class ReconciliationEngine:
                 map_b[ref] = l
         all_refs = set(map_a.keys()) | set(map_b.keys())
 
+        await self.db["discrepancies"].delete_many({
+            "company_a_id": company_a_id,
+            "company_b_id": company_b_id
+        })
+
         found = 0
         for ref in all_refs:
             rec_a = map_a.get(ref)
             rec_b = map_b.get(ref)
             dtype = self._classify(rec_a, rec_b)
             if not dtype:
+
+                logger.info(f"[Run {run_id}] >> ROW PERFECTLY MATCHED: {ref} (No discrepancy found)")
+                
+
+                for rec in [rec_a, rec_b]:
+                    if rec:
+                        rec_id = rec.get("_id") or rec.get("id")
+                        if rec_id:
+                            from bson import ObjectId
+                            selector = {"_id": ObjectId(rec_id)} if isinstance(rec_id, str) and ObjectId.is_valid(rec_id) else {"_id": rec_id}
+                            await self.db["ledgers"].update_one(selector, {"$set": {"status": "matched"}})
                 continue
 
-            # AI analysis — hata olursa varsayılan metin kullan, discrepancy yine de kaydedilsin
             try:
                 gemini_result = await analyze_discrepancy_adk(
                     company_a, company_b, ref,
@@ -170,7 +205,14 @@ class ReconciliationEngine:
                 "completed_at":        datetime.utcnow(),
             }},
         )
-        # Generate embeddings for vector search (non-blocking)
+
+        if found == 0:
+            await self.db["master_balances"].update_many(
+                {"counterparty_id": company_b_id},
+                {"$set": {"reconciliation_status": "matched", "updated_at": datetime.utcnow()}}
+            )
+            logger.info(f"[Run {run_id}] All rows matched! Counterparty status flipped to 'matched'.")
+
         await self._generate_embeddings(run_id)
         logger.info(f"[Run {run_id}] Reconciliation complete — {found} discrepancies detected.")
         return run_id

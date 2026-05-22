@@ -10,23 +10,23 @@ router = APIRouter()
 async def trigger_reconciliation(
     company_a_id: str,
     company_b_id: str,
-    background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ):
     """
-    Trigger the Gemini reconciliation agent for a company pair.
-    Uses FastAPI BackgroundTasks (thread-pool backed) — safe on Windows,
-    avoids asyncio subprocess/selector issues that cause TCP resets.
+    Trigger the Gemini reconciliation agent for a company pair synchronously
+    so the frontend spinner waits until the data is fully processed and updated.
     """
     import uuid
     from agent.reconciliation_engine import ReconciliationEngine
     run_id = str(uuid.uuid4())
     engine = ReconciliationEngine(db)
-    background_tasks.add_task(engine.run, company_a_id, company_b_id, run_id)
+    
+    await engine.run(company_a_id, company_b_id, run_id)
+    
     return {
-        "status":  "started",
+        "status":  "completed",
         "run_id":  run_id,
-        "message": f"Reconciliation agent triggered for companies {company_a_id} ↔ {company_b_id}",
+        "message": f"Reconciliation agent completed for companies {company_a_id} ↔ {company_b_id}",
     }
 
 

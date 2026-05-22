@@ -30,6 +30,7 @@ import {
   downloadMasterBalancesTemplate,
   downloadStatementOfAccountTemplate,
   downloadInternalStatementTemplate,
+  getDiscrepancies,
 } from '@/lib/api'
 import type {
   MasterBalance,
@@ -41,6 +42,7 @@ import type {
   FileRecord,
   GlobalStatementRecord,
   DeleteResponse,
+  Discrepancy,
 } from '@/types'
 import { formatCurrency, cn } from '@/lib/utils'
 
@@ -64,6 +66,23 @@ function StatusBadge({ status }: { status: MasterBalanceStatus }) {
     ready_for_external: { label: 'Ready for External', cls: 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20' },
   }
   const { label, cls } = map[status] ?? map.pending_match
+  return (
+    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border', cls)}>
+      {label}
+    </span>
+  )
+}
+
+// ── Discrepancy Badge ─────────────────────────────────────────────────────────
+
+function DiscrepancyBadge({ type }: { type: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    amount_mismatch: { label: 'Amount Mismatch', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/20' },
+    missing_record:  { label: 'Missing Record',  cls: 'bg-red-500/10 text-red-500 border-red-500/20' },
+    date_mismatch:   { label: 'Date Mismatch',   cls: 'bg-blue-500/10 text-blue-600 border-blue-500/20' },
+    duplicate:       { label: 'Duplicate',       cls: 'bg-purple-500/10 text-purple-600 border-purple-500/20' },
+  }
+  const { label, cls } = map[type] ?? { label: type, cls: 'bg-slate-100 text-slate-600 border-slate-200' }
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border', cls)}>
       {label}
@@ -911,6 +930,19 @@ export default function ReconciliationsPage() {
   })
   const ownCompany = companies.find((c: { is_own_company: boolean }) => c.is_own_company)
 
+  const { data: discrepancies = [] } = useQuery<Discrepancy[]>({
+    queryKey: ['discrepancies'],
+    queryFn: () => getDiscrepancies(),
+    staleTime: 30_000,
+  })
+
+  const discrepancyByCounterparty = (discrepancies as Discrepancy[]).reduce<Record<string, string>>((acc, d) => {
+    if (d.status !== 'resolved' && d.company_b_id) {
+      acc[d.company_b_id] = d.discrepancy_type
+    }
+    return acc
+  }, {}) || companies[0]
+
   // Keep selection clean
   useEffect(() => {
     setSelected(prev => {
@@ -947,18 +979,25 @@ export default function ReconciliationsPage() {
   }
 
   async function handleRunAgent(record: MasterBalance) {
-    if (!record.counterparty_id || !ownCompany?.id) return
+    console.log("⚡ Mor Zap butonuna basıldı. Firma:", record.company_name, "Kendi Şirketimiz:", ownCompany);
+    
+    if (!record.counterparty_id || !ownCompany?.id) {
+      console.error("❌ HATA: counterparty_id veya ownCompany.id eksik olduğundan buton kilitlendi!");
+      alert(`Hata: ${!record.counterparty_id ? 'Karşı taraf şirket ID\'si eksik' : 'Kendi şirketinizin (Own Company) ID\'si bulunamadı'}`);
+      return
+    }
+    
     setRunningId(record.id)
     try {
       const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
       if (res?.run_id) {
         fireAgentIsland(res.run_id)
-
+        
         qc.invalidateQueries({ queryKey: ['master-balances'] })
         qc.invalidateQueries({ queryKey: ['discrepancies'] })
       }
     } catch (err) {
-      console.error("Agent trigger error:", err)
+      console.error("❌ Agent tetiklenirken hata oluştu:", err)
     } finally {
       setRunningId(null)
     }
@@ -1119,7 +1158,9 @@ export default function ReconciliationsPage() {
                       />
                     </span>
                     <span className="text-sm text-[#94A3B8]">{record.currency}</span>
-                    <StatusBadge status={record.reconciliation_status} />
+                    {record.counterparty_id && discrepancyByCounterparty[record.counterparty_id]
+                      ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
+                      : <StatusBadge status={record.reconciliation_status} />}
 
                     {/* Row actions */}
                     <div className="flex justify-end gap-1.5">

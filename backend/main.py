@@ -71,3 +71,9 @@ app.include_router(gemini_chat.router,       prefix="/api/v1/gemini",     tags=[
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {"status": "ok", "service": "lumina-api", "version": "0.2.0"}
+
+
+# ── MongoDB MCP Server — HTTP/SSE Transport ───────────────────────────────────
+# Accessible at: /mcp/sse  (real MCP protocol over HTTP, no subprocess needed)
+from agent.mcp_server import create_mcp_asgi_app
+app.mount("/mcp", create_mcp_asgi_app())

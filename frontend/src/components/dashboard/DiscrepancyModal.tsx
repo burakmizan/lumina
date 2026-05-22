@@ -40,7 +40,7 @@ export function DiscrepancyModal({
               <TypeBadge type={disc.discrepancy_type} />
               <StatusBadge status={disc.status} />
             </div>
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold text-slate-900">
               Transaction Ref: <span className="font-mono">{disc.ledger_ref}</span>
             </h2>
             <p className="text-xs text-text-muted mt-0.5">
@@ -50,7 +50,7 @@ export function DiscrepancyModal({
           </div>
           <button
             onClick={onClose}
-            className="text-text-secondary hover:text-white hover:bg-surface-primary p-1.5 rounded-lg transition-colors flex-shrink-0"
+            className="text-text-secondary hover:text-slate-900 hover:bg-slate-100 p-1.5 rounded-lg transition-colors flex-shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -64,7 +64,7 @@ export function DiscrepancyModal({
               <p className="text-xs text-text-muted mb-1 truncate" title={companyA?.name}>
                 {companyA?.name ?? 'Company A'}
               </p>
-              <p className="text-xl font-bold text-white">
+              <p className="text-xl font-bold text-slate-900">
                 {formatCurrency(disc.company_a_amount)}
               </p>
               {companyA?.reconciliation_email && (
@@ -84,7 +84,7 @@ export function DiscrepancyModal({
               <p className="text-xs text-text-muted mb-1 truncate" title={companyB?.name}>
                 {companyB?.name ?? 'Company B'}
               </p>
-              <p className="text-xl font-bold text-white">
+              <p className="text-xl font-bold text-slate-900">
                 {disc.company_b_amount != null
                   ? formatCurrency(disc.company_b_amount)
                   : <span className="text-red-400 text-base">NOT FOUND</span>}
@@ -105,7 +105,7 @@ export function DiscrepancyModal({
             <p className="text-[11px] uppercase tracking-widest text-text-muted">AI Analysis</p>
           </div>
           {disc.ai_analysis ? (
-            <p className="text-sm text-white/85 leading-relaxed">{disc.ai_analysis}</p>
+            <p className="text-sm text-slate-700 leading-relaxed">{disc.ai_analysis}</p>
           ) : (
             <div className="flex items-center gap-2 text-text-secondary">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
@@ -131,7 +131,7 @@ export function DiscrepancyModal({
           </div>
           {disc.email_draft ? (
             <div className="bg-surface-primary rounded-xl p-5 border border-surface-border">
-              <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans leading-relaxed">
+              <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">
                 {disc.email_draft}
               </pre>
             </div>
@@ -165,7 +165,7 @@ export function DiscrepancyModal({
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm text-text-secondary hover:text-white border border-surface-border hover:border-surface-tertiary rounded-xl transition-colors"
+              className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors"
             >
               Close
             </button>

@@ -47,7 +47,15 @@ export const createCompany = (data: unknown) =>
 
 export const updateCompany = (
   id: string,
-  data: { name?: string; reconciliation_email?: string; contact_name?: string },
+  data: {
+    name?: string
+    reconciliation_email?: string
+    contact_name?: string
+    phones?: string[]
+    emails?: string[]
+    status?: 'active' | 'inactive'
+    customer_code?: string
+  },
 ) =>
   api.patch(`/api/v1/companies/${id}`, data).then(r => r.data)
 
