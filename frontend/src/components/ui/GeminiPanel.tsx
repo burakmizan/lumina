@@ -30,7 +30,14 @@ function LuminaStar({ className }: { className?: string }) {
 type Msg = { role: 'user' | 'assistant'; content: string }
 
 export function GeminiPanel() {
-  const [open, setOpen]           = useState(false)
+  const [open, setOpen] = useState(false)
+
+  // Keyboard shortcut: L → open Gemini panel
+  useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener('lumina:kb:open_gemini', handler)
+    return () => window.removeEventListener('lumina:kb:open_gemini', handler)
+  }, [])
   const [messages, setMessages]   = useState<Msg[]>([])
   const [input, setInput]         = useState('')
   const [loading, setLoading]           = useState(false)

@@ -31,7 +31,7 @@ export function DiscrepancyModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-surface-secondary border border-surface-border rounded-2xl w-full max-w-[640px] max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+      <div className="bg-white border border-surface-border rounded-2xl w-full max-w-[640px] max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
 
         {/* ── Header ── */}
         <div className="sticky top-0 z-10 bg-surface-secondary border-b border-surface-border px-6 py-5 flex items-start justify-between">
@@ -60,7 +60,7 @@ export function DiscrepancyModal({
         <div className="px-6 py-5 border-b border-surface-border">
           <p className="text-[11px] uppercase tracking-widest text-text-muted mb-3">Amount Comparison</p>
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-surface-primary rounded-xl p-4 border border-surface-border">
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
               <p className="text-xs text-text-muted mb-1 truncate" title={companyA?.name}>
                 {companyA?.name ?? 'Company A'}
               </p>

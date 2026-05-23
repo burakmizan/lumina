@@ -7,12 +7,13 @@ import Image from 'next/image'
 import { useRef, useState, useEffect } from 'react'
 import {
   LayoutDashboard, Users, FileSpreadsheet, AlertTriangle,
-  Bell, Plug, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, User,
+  Plug, Settings, LogOut, ChevronDown, ChevronLeft, ChevronRight, User,
   BarChart2,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { GlobalSearch } from '@/components/ui/GlobalSearch'
 import { GeminiPanel } from '@/components/ui/GeminiPanel'
+import { NotificationCenter } from '@/components/ui/NotificationCenter'
 
 const ALL_NAV = [
   { label: 'Dashboard',           href: '/dashboard',        icon: LayoutDashboard, permission: 'dashboard.view' },
@@ -186,13 +187,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
+            {/* Shortcuts hint */}
+            <kbd className="hidden lg:flex items-center px-2 py-1 text-[10px] font-mono font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg">
+              /
+            </kbd>
             {/* Global Search */}
             <GlobalSearch />
             {/* Notifications */}
-            <button className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-            </button>
+            <NotificationCenter />
           </div>
         </div>
       </header>

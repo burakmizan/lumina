@@ -1,14 +1,18 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Building2, AlertTriangle, Mail, Zap,
-  ChevronRight
+  Building2, AlertTriangle, Mail, Zap, ChevronRight,
+  Play, Loader2, CheckCircle2, Activity, RefreshCw, Clock,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { DiscrepancyModal } from '@/components/dashboard/DiscrepancyModal'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
-import { getCompanies, getDiscrepancies, approveDiscrepancy, getDiscrepancyAnalytics } from '@/lib/api'
+import {
+  getCompanies, getDiscrepancies, approveDiscrepancy,
+  getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns,
+} from '@/lib/api'
+import { fireAgentIsland } from '@/components/ui/AgentIsland'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from 'recharts'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import type { Company, Discrepancy } from '@/types'
@@ -19,6 +23,26 @@ const FILTER_TABS: { label: string; value: string }[] = [
   { label: 'Email Sent',        value: 'email_sent' },
   { label: 'Resolved',          value: 'resolved' },
 ]
+
+// ── Count-up animation hook ───────────────────────────────────────────────────
+function useCountUp(target: number, duration = 900): number {
+  const [count, setCount] = useState(0)
+  const frameRef = useRef(0)
+  useEffect(() => {
+    if (target === 0) { setCount(0); return }
+    let startTs: number | null = null
+    const step = (ts: number) => {
+      if (!startTs) startTs = ts
+      const ease = Math.min((ts - startTs) / duration, 1)
+      const eased = 1 - Math.pow(1 - ease, 3) // cubic ease-out
+      setCount(Math.round(eased * target))
+      if (ease < 1) frameRef.current = requestAnimationFrame(step)
+    }
+    frameRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frameRef.current)
+  }, [target, duration])
+  return count
+}
 
 export default function DashboardPage() {
   const [selected, setSelected]         = useState<Discrepancy | null>(null)
@@ -60,6 +84,43 @@ export default function DashboardPage() {
     staleTime: 60_000,
   })
 
+  const { data: masterBalances = [] } = useQuery({
+    queryKey: ['master-balances'],
+    queryFn: getMasterBalances,
+    staleTime: 30_000,
+  })
+
+  const { data: agentRuns = [], refetch: refetchRuns } = useQuery({
+    queryKey: ['agent-runs'],
+    queryFn: () => getAgentRuns(10),
+    refetchInterval: 10_000,
+  })
+
+  const ownCompany = companies.find((c: Company) => c.is_own_company) ?? companies[0]
+
+  const readyRecords = (masterBalances as { reconciliation_status: string; counterparty_id: string | null }[])
+    .filter(r => r.reconciliation_status === 'ready_for_external' && r.counterparty_id)
+
+  const [runAllState, setRunAllState] = useState({
+    running: false, done: 0, total: 0,
+  })
+
+  const handleRunAll = useCallback(async () => {
+    if (!ownCompany?.id || readyRecords.length === 0 || runAllState.running) return
+    setRunAllState({ running: true, done: 0, total: readyRecords.length })
+    for (const record of readyRecords as { counterparty_id: string }[]) {
+      try {
+        const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
+        if (res?.run_id) fireAgentIsland(res.run_id)
+      } catch { /* continue */ }
+      setRunAllState(s => ({ ...s, done: s.done + 1 }))
+    }
+    setRunAllState(s => ({ ...s, running: false }))
+    qc.invalidateQueries({ queryKey: ['discrepancies'] })
+    qc.invalidateQueries({ queryKey: ['master-balances'] })
+    refetchRuns()
+  }, [ownCompany, readyRecords, runAllState.running, qc, refetchRuns])
+
   const companyMap = companies.reduce<Record<string, Company>>((acc, c) => {
     acc[c.id] = c
     return acc
@@ -69,6 +130,10 @@ export default function DashboardPage() {
   const activeCount    = allDiscs.filter(d => !['resolved', 'email_sent'].includes(d.status)).length
   const isLoading      = loadingCompanies || loadingDiscs
 
+  const animCompanies = useCountUp(isLoading ? 0 : companies.length)
+  const animActive    = useCountUp(isLoading ? 0 : activeCount)
+  const animAwaiting  = useCountUp(isLoading ? 0 : awaitingCount)
+
   const filteredDiscs =
     statusFilter === 'all'
       ? allDiscs
@@ -76,14 +141,50 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      {/* Spacer for global top bar */}
-      <div className="h-2" />
+      {/* Page header with Run All */}
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Real-time B2B reconciliation overview</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {runAllState.running && (
+            <div className="flex items-center gap-2 min-w-[160px]">
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#29BE98] rounded-full transition-all duration-500"
+                  style={{ width: `${(runAllState.done / runAllState.total) * 100}%` }}
+                />
+              </div>
+              <span className="text-xs text-slate-500 font-mono flex-shrink-0">
+                {runAllState.done}/{runAllState.total}
+              </span>
+            </div>
+          )}
+          {readyRecords.length > 0 && (
+            <button
+              onClick={handleRunAll}
+              disabled={runAllState.running}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all',
+                runAllState.running
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : 'bg-[#29BE98] hover:bg-[#29BE98]/90 text-white shadow-lg shadow-[#29BE98]/20',
+              )}
+            >
+              {runAllState.running
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Running…</>
+                : <><Play className="w-4 h-4" /> Reconcile All ({readyRecords.length})</>}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Companies Monitored"
-          value={isLoading ? '—' : companies.length}
+          value={isLoading ? '—' : animCompanies}
           icon={<Building2 className="w-5 h-5" />}
           color="blue"
           sub={
@@ -96,14 +197,14 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Active Discrepancies"
-          value={isLoading ? '—' : activeCount}
+          value={isLoading ? '—' : animActive}
           icon={<AlertTriangle className="w-5 h-5" />}
           color="amber"
           sub={activeCount > 0 ? 'Requires reconciliation' : 'All clear'}
         />
         <StatCard
           label="Awaiting Approval"
-          value={isLoading ? '—' : awaitingCount}
+          value={isLoading ? '—' : animAwaiting}
           icon={<Mail className="w-5 h-5" />}
           color="green"
           sub={
@@ -118,8 +219,11 @@ export default function DashboardPage() {
       {/* ── Analytics ── */}
       {analytics && <DiscrepancyAnalytics analytics={analytics} companyMap={companyMap} />}
 
-      {/* ── Discrepancy Feed ── */}
-      <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden">
+      {/* ── Bottom Row: Feed + Activity ── */}
+      <div className="flex gap-4 items-start">
+        <div className="flex-1 min-w-0">
+        {/* ── Discrepancy Feed ── */}
+        <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -216,6 +320,74 @@ export default function DashboardPage() {
         )}
       </div>
 
+      </div>{/* end flex-1 */}
+
+        {/* ── Activity Feed ── */}
+        <div className="w-[280px] flex-shrink-0 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#29BE98]" />
+              <h3 className="text-sm font-semibold text-slate-900">Agent Activity</h3>
+            </div>
+            <button onClick={() => refetchRuns()} className="p-1 rounded text-slate-400 hover:text-slate-700 transition-colors">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+            {(agentRuns as {
+              id: string; company_a_id: string; company_b_id: string;
+              status: string; discrepancies_found: number; started_at: string
+            }[]).length === 0 ? (
+              <div className="px-4 py-8 text-center">
+                <Activity className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                <p className="text-xs text-slate-400">No agent runs yet</p>
+              </div>
+            ) : (agentRuns as {
+              id: string; company_a_id: string; company_b_id: string;
+              status: string; discrepancies_found: number; started_at: string
+            }[]).map(run => (
+              <div key={run.id} className="px-4 py-3 hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className={cn(
+                    'w-2 h-2 rounded-full flex-shrink-0',
+                    run.status === 'completed' && 'bg-emerald-500',
+                    run.status === 'running'   && 'bg-blue-500 animate-pulse',
+                    run.status === 'failed'    && 'bg-red-500',
+                    run.status === 'cancelled' && 'bg-slate-300',
+                  )} />
+                  <span className={cn(
+                    'text-[10px] font-semibold uppercase tracking-wide',
+                    run.status === 'completed' && 'text-emerald-600',
+                    run.status === 'running'   && 'text-blue-600',
+                    run.status === 'failed'    && 'text-red-600',
+                    run.status === 'cancelled' && 'text-slate-400',
+                  )}>{run.status}</span>
+                  {run.discrepancies_found > 0 && (
+                    <span className="ml-auto text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
+                      +{run.discrepancies_found}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-700 font-medium truncate">
+                  {companyMap[run.company_a_id]?.name?.split(' ')[0] ?? '—'}
+                  {' ↔ '}
+                  {companyMap[run.company_b_id]?.name?.split(' ')[0] ?? '—'}
+                </p>
+                <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400">
+                  <Clock className="w-2.5 h-2.5" />
+                  {formatDate(run.started_at)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2.5 border-t border-slate-100">
+            <a href="/reports" className="text-[11px] text-[#29BE98] hover:underline font-medium">
+              View all in Reports →
+            </a>
+          </div>
+        </div>
+      </div>{/* end bottom row */}
+
       {/* ── Modal ── */}
       {selected && (
         <DiscrepancyModal
@@ -297,7 +469,7 @@ function DiscrepancyAnalytics({
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
             <Tooltip
-              contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
+              contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#94a3b8' }}
             />
             <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v: string) => TYPE_LABELS[v] || v} />

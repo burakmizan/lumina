@@ -264,8 +264,14 @@ export default function ReportsPage() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-52 flex items-center justify-center text-sm text-slate-400">
-                No trend data yet — run a reconciliation to generate data.
+              <div className="h-52 flex flex-col items-center justify-center gap-3 select-none">
+                <div className="flex items-end gap-1.5 h-10">
+                  {[3,5,2,7,4,6,3,8,5].map((h,i) => (
+                    <div key={i} className="w-3 rounded-t animate-pulse"
+                      style={{ height:`${h*10}%`, background:`rgba(41,190,152,${0.1+i*0.06})`, animationDelay:`${i*0.12}s`, animationDuration:'2s' }} />
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 font-medium">Run a reconciliation to generate trend data</p>
               </div>
             )}
           </div>
@@ -303,7 +309,13 @@ export default function ReportsPage() {
                 </div>
               </>
             ) : (
-              <div className="h-52 flex items-center justify-center text-sm text-slate-400">No data yet</div>
+              <div className="h-52 flex flex-col items-center justify-center gap-3 select-none">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-4 border-slate-100 animate-pulse" />
+                  <div className="absolute inset-2 rounded-full border-4 border-dashed border-slate-200 animate-spin" style={{ animationDuration:'8s' }} />
+                </div>
+                <p className="text-xs text-slate-400 font-medium">No discrepancy data yet</p>
+              </div>
             )}
           </div>
         </div>
@@ -429,10 +441,31 @@ export default function ReportsPage() {
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
             </div>
           ) : runs.length === 0 ? (
-            <div className="p-10 text-center">
-              <Zap className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">No agent runs yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Trigger a reconciliation to see the timeline.</p>
+            <div className="py-16 flex flex-col items-center justify-center text-center px-8 select-none">
+              {/* Animated bar chart */}
+              <div className="flex items-end gap-2 h-12 mb-6">
+                {[40, 65, 30, 80, 50, 70, 45].map((h, i) => (
+                  <div key={i}
+                    className="w-4 rounded-t-md animate-pulse"
+                    style={{
+                      height: `${h}%`,
+                      background: `rgba(41,190,152,${0.15 + i * 0.08})`,
+                      animationDelay: `${i * 0.15}s`,
+                      animationDuration: '1.8s',
+                    }}
+                  />
+                ))}
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-2">No runs yet</h3>
+              <p className="text-sm text-slate-500 max-w-xs leading-relaxed mb-5">
+                Trigger your first reconciliation to start seeing agent run history, step timelines, and analytics.
+              </p>
+              <a href="/reconciliations"
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl transition-all hover:-translate-y-0.5"
+                style={{ background: 'linear-gradient(135deg,#29BE98,#22a085)', boxShadow: '0 4px 16px rgba(41,190,152,0.25)' }}>
+                <Zap className="w-4 h-4" />
+                Go to Reconciliation List
+              </a>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">

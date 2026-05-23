@@ -7,12 +7,15 @@ import {
   FolderOpen, X, FileSpreadsheet, FileText, Loader2,
   Trash2, Download, Send, Eye, Phone, Upload, FileDown,
   Activity, UserCheck, UserX, GitBranch, Plus,
+  LayoutList, Network,
 } from 'lucide-react'
+import { CounterpartyMap, type MapCompany } from '@/components/counterparties/CounterpartyMap'
 import { AppShell } from '@/components/layout/AppShell'
 import { Toast } from '@/components/ui/Toast'
 import {
   getCompanies,
   getCompanySettings,
+  getDiscrepancies,
   startReconciliationSession,
   updateCompany,
   getCounterpartySessions,
@@ -295,6 +298,7 @@ interface EditForm {
 
 function EditModal({ company, onClose, onSaved }: { company: Company; onClose: () => void; onSaved: () => void }) {
   const qc = useQueryClient()
+
   const [form, setForm] = useState<EditForm>({
     name:                 company.name,
     reconciliation_email: company.reconciliation_email,
@@ -797,6 +801,7 @@ export default function CounterpartiesPage() {
   const [docsCompany, setDocsCompany] = useState<Company | null>(null)
   const [profileCompany, setProfileCompany] = useState<Company | null>(null)
   const [showImport,    setShowImport]      = useState(false)
+  const [view,          setView]            = useState<'list' | 'map'>('list')
 
   const [selected, setSelected]         = useState<Set<string>>(new Set())
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
@@ -806,6 +811,13 @@ export default function CounterpartiesPage() {
   }>({ visible: false, x: 0, y: 0, company: null })
 
   const qc = useQueryClient()
+
+  // Keyboard shortcut: Cmd+N → open import modal
+  useEffect(() => {
+    const handler = () => setShowImport(true)
+    window.addEventListener('lumina:kb:new_counterparty', handler)
+    return () => window.removeEventListener('lumina:kb:new_counterparty', handler)
+  }, [])
 
   const { data: companies = [], isLoading, refetch, isFetching } = useQuery<Company[]>({
     queryKey: ['companies'],
@@ -817,6 +829,18 @@ export default function CounterpartiesPage() {
     queryFn: getCompanySettings,
     retry: false,
   })
+
+  const { data: allDiscs = [] } = useQuery({
+    queryKey: ['discrepancies'],
+    queryFn: () => getDiscrepancies(),
+    staleTime: 30_000,
+  })
+
+  const discrepancyIds = new Set(
+    (allDiscs as { company_b_id: string; status: string }[])
+      .filter(d => d.status !== 'resolved')
+      .map(d => d.company_b_id)
+  )
 
   const ownCompany     = companies.find(c => c.is_own_company) ?? companies[0]
   const counterparties = companies.filter(c => c.id !== ownCompany?.id)
@@ -946,6 +970,28 @@ export default function CounterpartiesPage() {
             <Upload className="w-4 h-4" />
             Import Counterparties
           </button>
+          {/* View toggle */}
+          <div className="flex items-center bg-slate-100 rounded-xl p-1">
+            <button
+              onClick={() => setView('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              <LayoutList className="w-3.5 h-3.5" /> List
+            </button>
+            <button
+              onClick={() => setView('map')}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'map' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}
+            >
+              <Network className="w-3.5 h-3.5" /> Map
+            </button>
+          </div>
+
           <button
             onClick={() => refetch()}
             disabled={isFetching}
@@ -957,8 +1003,52 @@ export default function CounterpartiesPage() {
         </div>
       </div>
 
+      {/* ── Map View ── */}
+      {view === 'map' && (
+        <div className="mb-6">
+          <CounterpartyMap
+            companies={[
+              // Own company comes from companySettings, NOT from companies array
+              // DEMO - MVP: inject own company if not already in companies list
+              ...(!companies.some(c => c.is_own_company) && companySettings?.identity?.company_name
+                ? [{
+                    id:      'own-company-settings',
+                    name:    companySettings.identity.company_name as string,
+                    isOwn:   true,
+                    status:  'matched' as const,
+                    country: (companySettings.identity as { legal_country?: string }).legal_country
+                             || 'United States', // DEMO - MVP fallback
+                  }]
+                : []),
+              // Counterparties
+              ...companies.map(c => {
+                const isOwn = c.is_own_company
+                  || c.name === companySettings?.identity?.company_name
+                  || c.id === ownCompany?.id
+                let status: MapCompany['status'] = 'pending'
+                if (!isOwn && discrepancyIds.has(c.id)) status = 'discrepancy'
+                else if (!isOwn && c.status === 'active') status = 'matched'
+                return {
+                  id: c.id, name: c.name, isOwn, status,
+                  // DEMO - MVP: legal_country not in DB yet
+                  country: (c as { legal_country?: string }).legal_country
+                    || (isOwn
+                      ? (companySettings?.identity as { legal_country?: string })?.legal_country
+                      : undefined)
+                    || 'United States', // DEMO - MVP fallback
+                }
+              }),
+            ]}
+            onNodeClick={id => {
+              const found = companies.find(c => c.id === id)
+              if (found && !found.is_own_company) setProfileCompany(found)
+            }}
+          />
+        </div>
+      )}
+
       {/* ── Stat cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className={cn('grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6', view === 'map' && 'hidden')}>
         {[
           { label: 'Total',           value: stats.total,    color: 'text-slate-900',   icon: <Users className="w-4 h-4" />,      bg: 'bg-white border-slate-200' },
           { label: 'Active',          value: stats.active,   color: 'text-[#29BE98]',   icon: <UserCheck className="w-4 h-4" />,  bg: 'bg-[#29BE98]/10 border-[#29BE98]/20' },
@@ -1026,16 +1116,53 @@ export default function CounterpartiesPage() {
             <Loader2 className="w-5 h-5 animate-spin" /><span className="text-sm">Loading…</span>
           </div>
         ) : counterparties.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-            <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mb-4">
-              <Building2 className="w-6 h-6 text-slate-400" />
+          <div className="flex flex-col items-center justify-center py-20 text-center px-8 select-none">
+            {/* Animated icon stack */}
+            <div className="relative mb-7">
+              {/* Pulse bg */}
+              <div className="absolute inset-[-10px] rounded-[24px] bg-[#29BE98]/8 animate-pulse" style={{ animationDuration: '2.5s' }} />
+              {/* Main icon */}
+              <div className="relative w-24 h-24 rounded-2xl flex items-center justify-center"
+                style={{ background: 'linear-gradient(135deg, rgba(41,190,152,0.12), rgba(37,151,248,0.08))', border: '1px solid rgba(41,190,152,0.2)' }}>
+                <Building2 className="w-10 h-10 text-[#29BE98] animate-bounce" style={{ animationDuration: '2.8s' }} />
+              </div>
+              {/* Floating badge — users */}
+              <div className="absolute -top-3 -right-3 w-9 h-9 rounded-xl flex items-center justify-center shadow-md animate-bounce"
+                style={{ background: 'rgba(37,151,248,0.12)', border: '1px solid rgba(37,151,248,0.2)', animationDuration: '2.2s', animationDelay: '0.4s' }}>
+                <Users className="w-4 h-4 text-[#2597F8]" />
+              </div>
+              {/* Floating badge — mail */}
+              <div className="absolute -bottom-2 -left-3 w-8 h-8 rounded-xl flex items-center justify-center shadow-md animate-bounce"
+                style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', animationDuration: '2s', animationDelay: '0.8s' }}>
+                <Mail className="w-3.5 h-3.5 text-amber-500" />
+              </div>
+              {/* Floating badge — zap */}
+              <div className="absolute top-0 -left-4 w-7 h-7 rounded-lg flex items-center justify-center shadow-sm animate-bounce"
+                style={{ background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', animationDuration: '3s', animationDelay: '1.2s' }}>
+                <Zap className="w-3 h-3 text-purple-500" />
+              </div>
             </div>
-            <p className="text-slate-900 font-medium mb-1">No counterparties found</p>
-            <p className="text-slate-500 text-sm">
-              Click{' '}
-              <button onClick={() => setShowImport(true)} className="text-[#29BE98] underline underline-offset-2">Import Counterparties</button>
-              {' '}or run{' '}
-              <code className="text-[#29BE98] text-xs bg-slate-100 px-1.5 py-0.5 rounded-md">scripts/seed_mock_data.py</code>
+
+            <h3 className="text-xl font-bold text-slate-900 mb-2">No counterparties yet</h3>
+            <p className="text-slate-500 text-sm max-w-sm leading-relaxed mb-7">
+              Import your first counterparty to start the AI-powered B2B reconciliation workflow — discrepancies detected in seconds.
+            </p>
+
+            <button
+              onClick={() => setShowImport(true)}
+              className="flex items-center gap-2.5 px-7 py-3 text-sm font-bold text-white rounded-2xl transition-all duration-200 hover:-translate-y-0.5"
+              style={{ background: 'linear-gradient(135deg, #29BE98, #22a085)', boxShadow: '0 4px 20px rgba(41,190,152,0.3)' }}
+            >
+              <Upload className="w-4 h-4" />
+              Import Counterparties
+            </button>
+
+            <p className="text-xs text-slate-400 mt-4">
+              or run{' '}
+              <code className="text-[#29BE98] bg-slate-100 px-1.5 py-0.5 rounded-md text-[11px] font-mono">
+                scripts/seed_mock_data.py
+              </code>
+              {' '}for demo data
             </p>
           </div>
         ) : (

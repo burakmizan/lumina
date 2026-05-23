@@ -23,7 +23,7 @@
 | 📖 **API Docs** | [https://lumina-backend-226562576108.us-central1.run.app/docs](https://lumina-backend-226562576108.us-central1.run.app/docs) |
 
 > **Demo Account:** <br>
-> ✉️ **Email:** `demo@lumina.com` <br>
+> ✉️ **Email:** `admin` <br>
 > 🔑 **Password:** `lumina2026`
 
 ---

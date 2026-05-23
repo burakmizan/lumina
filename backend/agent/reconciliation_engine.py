@@ -96,6 +96,9 @@ class ReconciliationEngine:
                 f"Fetching ledger records via MCP: {company_a.get('name','A')} ({len(ledgers_a)} records) ↔ {company_b.get('name','B')} ({len(ledgers_b)} records)")
             if not ledgers_a and not ledgers_b:
                 raise RuntimeError("MCP 0 kayıt döndürdü, motor fallback")
+            all_refs_preview = set(d.get("transaction_ref") for d in ledgers_a + ledgers_b if d.get("transaction_ref"))
+            await self._log_step(run_id, "comparing_records",
+                f"Comparing {len(all_refs_preview)} unique transaction references by ledger_ref...")
         except Exception as mcp_err:
             logger.warning(f"[Run {run_id}] MCP unavailable, motor kullanılıyor.")
             ledgers_a, ledgers_b = [], []
@@ -267,9 +270,9 @@ class ReconciliationEngine:
                     {"_id": doc["_id"]},
                     {"$set": {"embedding": result["embedding"]}},
                 )
-            await self._log_step(run_id, "generating_embeddings",
-                "Generating vector embeddings for Atlas Vector Search...")
             logger.info(f"[Run {run_id}] Embeddings generated for vector search.")
+            await self._log_step(run_id, "generating_embeddings",
+                "Vector embeddings saved to Atlas for semantic search.")
         except Exception as e:
             logger.warning(f"[Run {run_id}] Embedding generation skipped: {e}")
 

@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, RefreshCw, Filter, ChevronRight } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Filter, ChevronRight, CheckCircle2, Zap } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { DiscrepancyModal } from '@/components/dashboard/DiscrepancyModal'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
@@ -181,15 +181,41 @@ export default function DiscrepanciesPage() {
             <div className="w-6 h-6 border-2 border-surface-border border-t-accent-green rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-            <div className="w-12 h-12 rounded-2xl bg-surface-primary border border-surface-border flex items-center justify-center mb-4">
-              <AlertTriangle className="w-6 h-6 text-text-muted" />
+          allDiscs.length === 0 ? (
+          // ── All clear — zero discrepancies in system ──────────────────────
+          <div className="flex flex-col items-center justify-center py-20 text-center px-8 select-none">
+            <div className="relative mb-6">
+              {/* Triple ping rings */}
+              <span className="absolute inset-0 rounded-full animate-ping" style={{ background: 'rgba(41,190,152,0.15)', animationDuration: '2s' }} />
+              <span className="absolute inset-[-8px] rounded-full animate-ping" style={{ background: 'rgba(41,190,152,0.08)', animationDuration: '2s', animationDelay: '0.4s' }} />
+              <div className="relative w-20 h-20 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(41,190,152,0.12)', border: '2px solid rgba(41,190,152,0.35)' }}>
+                <CheckCircle2 className="w-9 h-9 text-[#29BE98]" />
+              </div>
             </div>
-            <p className="text-white font-medium mb-1">No matching discrepancies</p>
-            <p className="text-text-muted text-sm">
+            <h3 className="text-white text-xl font-bold mb-2">All clear!</h3>
+            <p className="text-[#94A3B8] text-sm leading-relaxed max-w-xs mb-5">
+              No discrepancies detected. All counterparty ledgers are perfectly reconciled.
+            </p>
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-[#29BE98]"
+              style={{ background: 'rgba(41,190,152,0.1)', border: '1px solid rgba(41,190,152,0.2)' }}>
+              <Zap className="w-3.5 h-3.5 animate-pulse" />
+              Lumina AI is monitoring your accounts in real-time
+            </div>
+          </div>
+          ) : (
+          // ── No match — filters returned nothing ───────────────────────────
+          <div className="flex flex-col items-center justify-center py-16 text-center px-8">
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.15)' }}>
+              <AlertTriangle className="w-6 h-6 text-[#64748B] animate-pulse" style={{ animationDuration: '2s' }} />
+            </div>
+            <p className="text-white font-semibold mb-1.5">No matching discrepancies</p>
+            <p className="text-[#94A3B8] text-sm">
               Adjust the filters or run the reconciliation agent.
             </p>
           </div>
+          )
         ) : (
           <div className="divide-y divide-surface-border">
             {filtered.map(disc => {

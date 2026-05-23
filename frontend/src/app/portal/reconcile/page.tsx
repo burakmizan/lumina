@@ -2,8 +2,8 @@
 import { useState, useCallback, useRef, DragEvent, ChangeEvent, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  Zap, Upload, FileSpreadsheet, FileText, CheckCircle2,
-  XCircle, AlertTriangle, Loader2, X,
+  Upload, FileSpreadsheet, FileText, CheckCircle2,
+  XCircle, AlertTriangle, Loader2, X, Zap, Shield, Lock,
 } from 'lucide-react'
 import { validatePortalToken, uploadPortalFile } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -11,7 +11,7 @@ import type { TokenValidationResponse, PortalUploadResponse } from '@/types'
 
 type Phase = 'loading' | 'invalid' | 'upload' | 'uploading' | 'success' | 'error'
 
-const ACCEPTED = '.xlsx,.xls,.csv,.pdf'
+const ACCEPTED      = '.xlsx,.xls,.csv,.pdf'
 const ACCEPTED_MIME = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-excel',
@@ -19,20 +19,44 @@ const ACCEPTED_MIME = [
   'application/pdf',
 ]
 
-function isAcceptedFile(file: File): boolean {
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
-  return ['xlsx', 'xls', 'csv', 'pdf'].includes(ext) || ACCEPTED_MIME.includes(file.type)
+function isAcceptedFile(f: File) {
+  const ext = f.name.split('.').pop()?.toLowerCase() ?? ''
+  return ['xlsx', 'xls', 'csv', 'pdf'].includes(ext) || ACCEPTED_MIME.includes(f.type)
 }
 
+// ── Burst particles on success ────────────────────────────────────────────────
+function SuccessBurst() {
+  const dots = Array.from({ length: 16 }, (_, i) => ({
+    angle: (i / 16) * 360,
+    r:     55 + (i % 3) * 15,
+    color: ['#29BE98','#34D399','#6EE7B7','#2597F8','#fff'][i % 5],
+    s:     3 + (i % 3) * 2,
+    delay: (i % 4) * 0.07,
+  }))
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {dots.map((d, i) => (
+        <div key={i} className="absolute rounded-full"
+          style={{
+            width: d.s, height: d.s, background: d.color,
+            transform: `rotate(${d.angle}deg) translateY(-${d.r}px)`,
+            animation: `ping 1s cubic-bezier(0,0,0.2,1) ${d.delay}s both`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 export default function ReconcilePortalPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-surface-primary flex items-center justify-center">
-          <Loader2 className="w-6 h-6 text-accent-blue animate-spin" />
-        </div>
-      }
-    >
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center"
+        style={{ background: 'linear-gradient(135deg,#040F0A 0%,#071810 50%,#0A2018 100%)' }}>
+        <Loader2 className="w-7 h-7 text-[#29BE98] animate-spin" />
+      </div>
+    }>
       <PortalContent />
     </Suspense>
   )
@@ -42,44 +66,39 @@ function PortalContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token') ?? ''
 
-  const [phase, setPhase]               = useState<Phase>('loading')
-  const [session, setSession]           = useState<TokenValidationResponse | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [isDragging, setIsDragging]     = useState(false)
-  const [uploadResult, setUploadResult] = useState<PortalUploadResponse | null>(null)
-  const [errorMsg, setErrorMsg]         = useState<string>('')
+  const [phase,          setPhase]          = useState<Phase>('loading')
+  const [session,        setSession]        = useState<TokenValidationResponse | null>(null)
+  const [selectedFile,   setSelectedFile]   = useState<File | null>(null)
+  const [isDragging,     setIsDragging]     = useState(false)
+  const [uploadResult,   setUploadResult]   = useState<PortalUploadResponse | null>(null)
+  const [errorMsg,       setErrorMsg]       = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!token) {
-      setPhase('invalid')
-      return
-    }
+    if (!token) { setPhase('invalid'); return }
     validatePortalToken(token)
-      .then((data: TokenValidationResponse) => {
-        setSession(data)
-        setPhase(data.valid ? 'upload' : 'invalid')
-      })
+      .then((d: TokenValidationResponse) => { setSession(d); setPhase(d.valid ? 'upload' : 'invalid') })
       .catch(() => setPhase('invalid'))
   }, [token])
 
-  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(true)
-  }, [])
+  // Fake progress during upload
+  useEffect(() => {
+    if (phase !== 'uploading') { setUploadProgress(0); return }
+    const t = setInterval(() => setUploadProgress(p => Math.min(p + Math.random() * 12, 88)), 380)
+    return () => clearInterval(t)
+  }, [phase])
 
-  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+  const handleDragOver  = useCallback((e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true)  }, [])
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false) }, [])
+  const handleDrop      = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(false)
+    const f = e.dataTransfer.files[0]
+    if (f && isAcceptedFile(f)) setSelectedFile(f)
   }, [])
-
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file && isAcceptedFile(file)) setSelectedFile(file)
-  }, [])
-
   const handleFileChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setSelectedFile(file)
+    const f = e.target.files?.[0]
+    if (f) setSelectedFile(f)
   }, [])
 
   async function handleUpload() {
@@ -87,269 +106,296 @@ function PortalContent() {
     setPhase('uploading')
     try {
       const result: PortalUploadResponse = await uploadPortalFile(token, selectedFile)
+      setUploadProgress(100)
       setUploadResult(result)
-      setPhase('success')
+      setTimeout(() => setPhase('success'), 350)
     } catch (err: unknown) {
-      setErrorMsg(
-        err instanceof Error
-          ? err.message
-          : 'An error occurred while uploading. Please try again.',
-      )
+      setErrorMsg(err instanceof Error ? err.message : 'Upload failed. Please try again.')
       setPhase('error')
     }
   }
 
-  function getFileIcon(file: File) {
-    const ext = file.name.split('.').pop()?.toLowerCase()
-    if (ext === 'pdf') return <FileText className="w-5 h-5 text-red-400" />
-    return <FileSpreadsheet className="w-5 h-5 text-accent-green" />
+  function fileIcon(f: File) {
+    return f.name.endsWith('.pdf')
+      ? <FileText className="w-5 h-5 text-red-400" />
+      : <FileSpreadsheet className="w-5 h-5 text-[#29BE98]" />
   }
 
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  function fmtBytes(b: number) {
+    if (b < 1024) return `${b} B`
+    if (b < 1048576) return `${(b/1024).toFixed(1)} KB`
+    return `${(b/1048576).toFixed(1)} MB`
+  }
+
+  const initials = session?.initiating_company_name?.slice(0, 2).toUpperCase() ?? 'LC'
+
+  // ── Shared card style ──────────────────────────────────────────────────────
+  const card: React.CSSProperties = {
+    background:    'rgba(10,24,18,0.92)',
+    border:        '1px solid rgba(41,190,152,0.18)',
+    backdropFilter:'blur(24px)',
+    borderRadius:  '20px',
   }
 
   return (
-    <div className="min-h-screen bg-surface-primary flex flex-col items-center justify-center p-6">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            'radial-gradient(ellipse 50% 40% at 50% 50%, rgba(37,151,248,0.06) 0%, transparent 70%)',
-        }}
-      />
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden"
+      style={{ background: 'linear-gradient(135deg,#040F0A 0%,#071810 50%,#0A2018 100%)' }}>
 
-      <div className="w-full max-w-[480px] relative z-10">
-        {/* Logo */}
-        <div className="flex flex-col items-center justify-center gap-3 mb-8">
-          <img src="/lumina.png" alt="Lumina Logo" className="h-10 w-auto object-contain" />
-          <p className="text-[11px] text-slate-500 uppercase tracking-widest font-medium">
-            Secure Reconciliation Portal
-          </p>
+      {/* Grid overlay */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.025]"
+        style={{
+          backgroundImage:'linear-gradient(rgba(41,190,152,1) 1px,transparent 1px),linear-gradient(90deg,rgba(41,190,152,1) 1px,transparent 1px)',
+          backgroundSize:'40px 40px',
+        }} />
+
+      {/* Glow orbs */}
+      <div className="absolute top-1/4 left-1/3 w-[500px] h-[500px] rounded-full opacity-[0.05] blur-3xl pointer-events-none"
+        style={{ background:'radial-gradient(circle,#29BE98,transparent)' }} />
+      <div className="absolute bottom-1/4 right-1/4 w-72 h-72 rounded-full opacity-[0.04] blur-3xl pointer-events-none"
+        style={{ background:'radial-gradient(circle,#2597F8,transparent)' }} />
+
+      <div className="w-full max-w-[460px] relative z-10">
+
+        {/* ── Top branding ── */}
+        <div className="flex flex-col items-center mb-7">
+          <img src="/lumina.png" alt="Lumina"
+            className="h-14 w-auto object-contain mb-5"
+            style={{ filter:'brightness(0) invert(1)' }} />
+
+          {session?.initiating_company_name && (
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl"
+              style={{ background:'rgba(41,190,152,0.07)', border:'1px solid rgba(41,190,152,0.18)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                style={{ background:'linear-gradient(135deg,#29BE98 0%,#2597F8 100%)' }}>
+                {initials}
+              </div>
+              <div className="min-w-0 text-left">
+                <p className="text-[9px] text-[#29BE98] font-semibold uppercase tracking-widest">Reconciliation request from</p>
+                <p className="text-sm font-bold text-white truncate">{session.initiating_company_name}</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Loading */}
+        {/* ── Loading ── */}
         {phase === 'loading' && (
-          <div className="bg-surface-secondary border border-surface-border rounded-2xl p-10 flex flex-col items-center gap-4">
-            <Loader2 className="w-8 h-8 text-accent-blue animate-spin" />
-            <p className="text-text-secondary text-sm">Validating token…</p>
+          <div className="p-12 flex flex-col items-center gap-5" style={card}>
+            <div className="w-12 h-12 rounded-full border-2 animate-spin"
+              style={{ borderColor:'rgba(41,190,152,0.15)', borderTopColor:'#29BE98' }} />
+            <p className="text-white/50 text-sm">Validating secure token…</p>
           </div>
         )}
 
-        {/* Invalid token */}
+        {/* ── Invalid ── */}
         {phase === 'invalid' && (
-          <div className="bg-surface-secondary border border-red-500/20 rounded-2xl p-8 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
-              <XCircle className="w-6 h-6 text-red-400" />
+          <div className="p-8 text-center" style={{ ...card, borderColor:'rgba(239,68,68,0.2)' }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+              style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)' }}>
+              <XCircle className="w-7 h-7 text-red-400" />
             </div>
-            <h2 className="text-white font-semibold mb-2">Invalid or Expired Link</h2>
-            <p className="text-text-muted text-sm leading-relaxed">
-              {session?.message ??
-                'This reconciliation link is invalid or has expired. Please contact the requesting company.'}
+            <h2 className="text-white font-bold text-lg mb-2">Invalid or Expired Link</h2>
+            <p className="text-white/45 text-sm leading-relaxed">
+              {session?.message ?? 'This reconciliation link is invalid or has expired. Please contact the requesting company.'}
             </p>
           </div>
         )}
 
-        {/* Upload screen */}
+        {/* ── Upload / Uploading ── */}
         {(phase === 'upload' || phase === 'uploading') && session?.valid && (
-          <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden shadow-2xl">
-            <div className="px-6 pt-6 pb-5 border-b border-slate-200">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#2597F8] animate-pulse" />
-                <p className="text-[10px] uppercase tracking-widest text-[#2597F8] font-medium">
-                  End-of-Period Reconciliation
-                </p>
+          <div style={card} className="overflow-hidden">
+
+            {/* Card header */}
+            <div className="px-6 pt-6 pb-5" style={{ borderBottom:'1px solid rgba(41,190,152,0.1)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#29BE98] animate-pulse" />
+                <p className="text-[10px] text-[#29BE98] font-semibold uppercase tracking-widest">Secure Reconciliation Portal</p>
               </div>
-              <h2 className="text-xl font-bold text-slate-900 mt-2">Ledger Statement Upload</h2>
-              <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                Dear{' '}
-                <span className="text-slate-900 font-semibold">{session.counterparty_name}</span>, your
-                end-of-period reconciliation process with{' '}
-                <span className="text-slate-900 font-semibold">{session.initiating_company_name}</span> has
-                started.
+              <h2 className="text-xl font-bold text-white">Upload Ledger Statement</h2>
+              <p className="text-sm text-white/50 mt-2 leading-relaxed">
+                Dear <span className="text-white font-semibold">{session.counterparty_name}</span>, please
+                upload your statement for reconciliation with{' '}
+                <span className="text-[#29BE98] font-semibold">{session.initiating_company_name}</span>.
               </p>
             </div>
 
-            <div className="px-6 py-5">
+            <div className="px-6 py-5 space-y-4">
+
               {/* Drop zone */}
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => !selectedFile && inputRef.current?.click()}
+                onClick={() => !selectedFile && phase !== 'uploading' && inputRef.current?.click()}
                 className={cn(
-                  'relative rounded-xl border-2 border-dashed transition-all duration-200',
-                  'flex flex-col items-center justify-center text-center',
-                  selectedFile ? 'py-5 cursor-default' : 'py-10 cursor-pointer',
-                  isDragging
-                    ? 'border-accent-blue bg-accent-blue/5 scale-[1.01]'
-                    : selectedFile
-                    ? 'border-accent-green/40 bg-accent-green/5'
-                    : 'border-surface-border hover:border-accent-blue/40 hover:bg-accent-blue/5',
+                  'relative rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden',
+                  selectedFile || phase === 'uploading' ? 'py-4 cursor-default' : 'py-10 cursor-pointer',
+                  isDragging ? 'scale-[1.015]' : '',
                 )}
+                style={{
+                  borderColor: isDragging ? '#29BE98'
+                    : selectedFile ? 'rgba(41,190,152,0.45)'
+                    : 'rgba(41,190,152,0.18)',
+                  background: isDragging ? 'rgba(41,190,152,0.07)'
+                    : selectedFile ? 'rgba(41,190,152,0.04)'
+                    : 'rgba(41,190,152,0.02)',
+                }}
               >
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept={ACCEPTED}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                {selectedFile ? (
-                  <div className="flex items-center gap-3 px-4">
-                    <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center flex-shrink-0">
-                      {getFileIcon(selectedFile)}
+                <input ref={inputRef} type="file" accept={ACCEPTED} onChange={handleFileChange} className="hidden" />
+
+                {/* Uploading state */}
+                {phase === 'uploading' && selectedFile && (
+                  <div className="px-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background:'rgba(41,190,152,0.15)' }}>
+                        {fileIcon(selectedFile)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{selectedFile.name}</p>
+                        <p className="text-xs text-white/35">{fmtBytes(selectedFile.size)}</p>
+                      </div>
+                      <Loader2 className="w-4 h-4 text-[#29BE98] animate-spin flex-shrink-0" />
                     </div>
-                    <div className="text-left min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{selectedFile.name}</p>
-                      <p className="text-xs text-slate-500">{formatBytes(selectedFile.size)}</p>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background:'rgba(41,190,152,0.1)' }}>
+                      <div className="h-full rounded-full transition-all duration-500"
+                        style={{ width:`${uploadProgress}%`, background:'linear-gradient(90deg,#29BE98,#2597F8)' }} />
                     </div>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation()
-                        setSelectedFile(null)
-                        if (inputRef.current) inputRef.current.value = ''
-                      }}
-                      className="flex-shrink-0 w-7 h-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
+                    <p className="text-[11px] text-white/35 mt-2 text-center">
+                      Lumina AI is parsing & normalizing your statement…
+                    </p>
+                  </div>
+                )}
+
+                {/* File selected */}
+                {selectedFile && phase !== 'uploading' && (
+                  <div className="flex items-center gap-3 px-5">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background:'rgba(41,190,152,0.15)' }}>
+                      {fileIcon(selectedFile)}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-semibold text-white truncate">{selectedFile.name}</p>
+                      <p className="text-xs text-white/40">{fmtBytes(selectedFile.size)}</p>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); setSelectedFile(null) }}
+                      className="p-1.5 rounded-lg transition-colors"
+                      style={{ background:'rgba(255,255,255,0.06)' }}>
+                      <X className="w-4 h-4 text-white/40" />
                     </button>
                   </div>
-                ) : (
-                  <>
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-4">
-                      <Upload className="w-6 h-6 text-slate-400" />
-                    </div>
-                    <p className="text-sm font-medium text-slate-900 mb-1">
-                      {isDragging ? 'Drop your file here' : 'Drag & drop your file or browse'}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      Excel (.xlsx, .xls), CSV or PDF · Max. 20 MB
-                    </p>
-                  </>
                 )}
-              </div>
 
-              {/* Format hint */}
-              <div className="mt-4 flex items-start gap-2 px-3 py-2.5 bg-surface-primary border border-surface-border rounded-xl">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                <p className="text-[11px] text-text-muted leading-relaxed">
-                  Any ERP format (SAP, Oracle, Dynamics, Sage) is supported. Lumina AI will
-                  automatically detect date, amount, and reference columns.
-                </p>
+                {/* Idle — no file */}
+                {!selectedFile && phase !== 'uploading' && (
+                  <div className="flex flex-col items-center">
+                    <div className={cn(
+                      'w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-all duration-300',
+                      isDragging ? 'scale-110 -translate-y-1' : '',
+                    )}
+                      style={{
+                        background: isDragging ? 'rgba(41,190,152,0.2)' : 'rgba(41,190,152,0.1)',
+                        border: '1px solid rgba(41,190,152,0.2)',
+                      }}>
+                      <Upload className={cn('w-6 h-6 text-[#29BE98] transition-transform duration-300', isDragging && '-translate-y-0.5')} />
+                    </div>
+                    <p className="text-sm font-bold text-white mb-1">
+                      {isDragging ? 'Release to upload' : 'Drag & drop your statement'}
+                    </p>
+                    <p className="text-xs text-white/35 mb-4">or click to browse</p>
+                    <div className="flex items-center gap-2">
+                      {['XLSX','XLS','CSV','PDF'].map(f => (
+                        <span key={f} className="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold"
+                          style={{ background:'rgba(41,190,152,0.08)', color:'#29BE98', border:'1px solid rgba(41,190,152,0.15)' }}>
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Upload button */}
-              <button
-                onClick={handleUpload}
-                disabled={!selectedFile || phase === 'uploading'}
-                className={cn(
-                  'mt-5 w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all',
-                  selectedFile && phase !== 'uploading'
-                    ? 'bg-accent-blue hover:bg-accent-blue-hover text-white shadow-sm'
-                    : 'bg-surface-primary border border-surface-border text-text-muted cursor-not-allowed',
-                )}
-              >
-                {phase === 'uploading' ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Uploading…
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    Upload &amp; Submit Statement
-                  </>
-                )}
-              </button>
-            </div>
+              {selectedFile && phase !== 'uploading' && (
+                <button onClick={handleUpload}
+                  className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all duration-200 hover:opacity-90 active:scale-[0.99]"
+                  style={{ background:'linear-gradient(135deg,#29BE98,#22a085)', boxShadow:'0 4px 20px rgba(41,190,152,0.28)' }}>
+                  <Upload className="w-4 h-4" />
+                  Upload Statement
+                </button>
+              )}
 
-            <div className="px-6 pb-5">
-              <p className="text-[11px] text-text-muted text-center">
-                Your data is transmitted over an encrypted connection and used solely for
-                reconciliation purposes.
-              </p>
+              {/* Security note */}
+              <div className="flex items-center justify-center gap-1.5">
+                <Lock className="w-3 h-3 text-white/20" />
+                <p className="text-[10px] text-white/20">256-bit encrypted · Token expires in 72 hours</p>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Success */}
-        {phase === 'success' && uploadResult && (
-          <div className="bg-surface-secondary border border-accent-green/20 rounded-2xl overflow-hidden shadow-2xl">
-            {/* Header */}
-            <div className="px-6 pt-7 pb-6 text-center border-b border-surface-border">
-              <div className="w-14 h-14 rounded-2xl bg-accent-green/15 border border-accent-green/25 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-7 h-7 text-accent-green" />
+        {/* ── Success ── */}
+        {phase === 'success' && (
+          <div className="p-8 text-center relative overflow-hidden"
+            style={{ ...card, borderColor:'rgba(41,190,152,0.3)' }}>
+            <SuccessBurst />
+
+            <div className="relative inline-flex mb-5">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center"
+                style={{ background:'rgba(41,190,152,0.1)', border:'2px solid rgba(41,190,152,0.4)' }}>
+                <CheckCircle2 className="w-10 h-10 text-[#29BE98]" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-1">Statement Received</h2>
-              <p className="text-text-muted text-sm leading-relaxed">
-                Your file has been securely uploaded and queued for AI analysis.
-              </p>
+              <div className="absolute inset-0 rounded-full animate-ping opacity-20"
+                style={{ border:'2px solid #29BE98' }} />
             </div>
 
-            {/* File detail */}
-            {selectedFile && (
-              <div className="px-6 py-4 border-b border-surface-border">
-                <div className="flex items-center gap-3 p-3 bg-surface-primary rounded-xl border border-surface-border">
-                  <div className="w-8 h-8 rounded-lg bg-accent-green/10 border border-accent-green/20 flex items-center justify-center flex-shrink-0">
-                    {selectedFile.name.toLowerCase().endsWith('.pdf')
-                      ? <FileText className="w-4 h-4 text-accent-green" />
-                      : <FileSpreadsheet className="w-4 h-4 text-accent-green" />
-                    }
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-white truncate">{selectedFile.name}</p>
-                    <p className="text-xs text-text-muted">
-                      {selectedFile.size < 1024 * 1024
-                        ? `${(selectedFile.size / 1024).toFixed(1)} KB`
-                        : `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB`
-                      } · Uploaded successfully
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-4 h-4 text-accent-green flex-shrink-0" />
-                </div>
-              </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Statement Received!</h2>
+            <p className="text-white/50 text-sm leading-relaxed mb-1">
+              Your ledger has been securely delivered to{' '}
+              <span className="text-[#29BE98] font-semibold">{session?.initiating_company_name}</span>.
+            </p>
+            {(uploadResult as unknown as { records_processed?: number } | null)?.records_processed && (
+              <p className="text-white/60 text-sm font-semibold mb-5">
+                {(uploadResult as unknown as { records_processed: number }).records_processed} transaction records processed.
+              </p>
             )}
 
-            {/* AI status */}
-            <div className="px-6 py-5">
-              <div className="flex items-center gap-3 p-3 bg-accent-blue/5 border border-accent-blue/15 rounded-xl mb-4">
-                <span className="w-2 h-2 rounded-full bg-accent-blue animate-pulse flex-shrink-0" />
-                <p className="text-sm text-accent-blue font-medium">
-                  AI reconciliation analysis in progress…
-                </p>
-              </div>
-              <p className="text-[11px] text-text-muted text-center leading-relaxed">
-                Results will appear in the Lumina dashboard shortly.<br />
-                You will be notified by email when the analysis is complete.
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl mt-4"
+              style={{ background:'rgba(41,190,152,0.07)', border:'1px solid rgba(41,190,152,0.15)' }}>
+              <Loader2 className="w-4 h-4 text-[#29BE98] animate-spin flex-shrink-0" />
+              <p className="text-xs text-white/45 text-left">
+                Lumina AI reconciliation agent is running. You will be notified when results are ready.
               </p>
             </div>
           </div>
         )}
 
-        {/* Error */}
+        {/* ── Error ── */}
         {phase === 'error' && (
-          <div className="bg-surface-secondary border border-red-500/20 rounded-2xl p-8 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
-              <XCircle className="w-6 h-6 text-red-400" />
+          <div className="p-8" style={{ ...card, borderColor:'rgba(239,68,68,0.2)' }}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
+              style={{ background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)' }}>
+              <AlertTriangle className="w-6 h-6 text-red-400" />
             </div>
-            <h2 className="text-white font-semibold mb-2">Upload Failed</h2>
-            <p className="text-text-muted text-sm leading-relaxed mb-5">{errorMsg}</p>
+            <h2 className="text-white font-bold text-lg mb-2">Upload Failed</h2>
+            <p className="text-white/45 text-sm leading-relaxed mb-5">{errorMsg}</p>
             <button
               onClick={() => { setPhase('upload'); setSelectedFile(null); setErrorMsg('') }}
-              className="px-5 py-2.5 bg-surface-primary border border-surface-border hover:border-surface-tertiary text-sm text-white rounded-xl transition-colors"
-            >
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-[#29BE98] border border-[#29BE98]/20 hover:bg-[#29BE98]/10 transition-colors">
               Try Again
             </button>
           </div>
         )}
 
-        <p className="text-center text-xs text-text-muted mt-6 opacity-60">
-          Lumina · Secure B2B Reconciliation Platform
-        </p>
+        {/* Footer */}
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <Zap className="w-3 h-3 text-[#29BE98]/50" />
+          <p className="text-[11px] text-white/20">
+            Powered by <span className="text-[#29BE98]/60 font-semibold">Lumina AI</span>
+            {' · '}Reconciliation Reinvented.
+          </p>
+          <Shield className="w-3 h-3 text-[#29BE98]/50" />
+        </div>
+
       </div>
     </div>
   )

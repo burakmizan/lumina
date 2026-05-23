@@ -22,11 +22,12 @@ async def trigger_reconciliation(
 
     run_id = str(uuid.uuid4())
 
-    async def _run_in_background():
-        engine = ReconciliationEngine(db)
-        await engine.run(company_a_id, company_b_id, run_id)
+    async def _run_in_background(a_id: str, b_id: str, r_id: str):
+        from agent.reconciliation_engine import ReconciliationEngine as RE
+        eng = RE(db)
+        await eng.run(a_id, b_id, r_id)
 
-    background_tasks.add_task(_run_in_background)
+    background_tasks.add_task(_run_in_background, company_a_id, company_b_id, run_id)
 
     return {
         "status":  "started",

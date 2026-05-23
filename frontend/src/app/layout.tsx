@@ -4,6 +4,8 @@ import './globals.css'
 import { QueryProvider } from '@/components/layout/QueryProvider'
 import { AuthProvider } from '@/lib/auth-context'
 import { AgentIsland } from '@/components/ui/AgentIsland'
+import { AgentExecutionPanel } from '@/components/ui/AgentExecutionPanel'
+import { KeyboardShortcutOverlay } from '@/components/ui/KeyboardShortcutOverlay'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
@@ -20,6 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             {children}
             <AgentIsland />
+            <AgentExecutionPanel />
+            <KeyboardShortcutOverlay />
           </AuthProvider>
         </QueryProvider>
       </body>
