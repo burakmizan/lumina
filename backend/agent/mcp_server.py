@@ -5,14 +5,16 @@ Lumina MongoDB MCP Server (Python-native)
 Motor-backed MCP server. Runs as a stdio subprocess.
 No Node.js required — pure Python.
 
-Tools: find, aggregate, insert_one, update_one
+Tools: find, aggregate, insert_one, update_one, vector_search
+
+HTTP/SSE endpoint is protected by a shared Bearer token (SECRET_KEY).
+All tool calls are restricted to an explicit collection allowlist.
 """
 import asyncio
 import json
 import os
 import sys
 
-# Subprocess olarak çalışırken backend/ dizinini path'e ekle
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -26,13 +28,20 @@ from mcp.types import Tool, TextContent
 MONGODB_URI    = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "lumina_db")
 
+# Only these collections may be accessed via MCP tools
+_ALLOWED_COLLECTIONS = frozenset({
+    "companies", "ledgers", "discrepancies", "agent_runs",
+    "reconciliation_sessions", "master_balances", "file_objects",
+    "erp_integrations", "company_settings", "users", "roles",
+    "global_statements",
+})
+
 app = Server("lumina-mongodb-mcp")
 _mongo_client = None
 _db = None
 
 
 def get_db():
-    # In-process modda app'in mevcut Atlas bağlantısını kullan
     try:
         from core.database import get_database
         db = get_database()
@@ -40,7 +49,6 @@ def get_db():
             return db
     except Exception:
         pass
-    # Fallback: standalone subprocess modu için kendi bağlantıyı kur
     global _mongo_client, _db
     if _db is None:
         import certifi
@@ -53,7 +61,6 @@ def get_db():
 
 
 def _serialize(obj):
-    """ObjectId ve datetime'ı JSON-safe string'e çevir."""
     if isinstance(obj, dict):
         return {k: _serialize(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -136,14 +143,22 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    db         = get_db()
-    col_name   = arguments.get("collection", "")
+    db       = get_db()
+    col_name = arguments.get("collection", "")
+
+    # Enforce collection allowlist for all collection-based tools
+    if name in ("find", "aggregate", "insert_one", "update_one"):
+        if col_name not in _ALLOWED_COLLECTIONS:
+            return [TextContent(type="text", text=json.dumps(
+                {"error": f"Collection '{col_name}' is not accessible via MCP"}
+            ))]
+
     collection = db[col_name]
 
     try:
         if name == "find":
             query  = arguments.get("filter", {})
-            limit  = int(arguments.get("limit", 500))
+            limit  = min(int(arguments.get("limit", 500)), 1000)
             docs   = []
             async for doc in collection.find(query).limit(limit):
                 doc["_id"] = str(doc["_id"])
@@ -182,7 +197,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             limit      = int(arguments.get("limit", 5))
             min_score  = float(arguments.get("min_score", 0.65))
             try:
-                import os
                 import google.generativeai as genai
                 genai.configure(api_key=os.getenv("GEMINI_API_KEY", ""))
                 result = genai.embed_content(
@@ -203,7 +217,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     },
                     {"$addFields": {"score": {"$meta": "vectorSearchScore"}}},
                     {"$match":     {"score": {"$gte": min_score}}},
-                    {"$project":   {"embedding": 0}},  # don't return the big vector
+                    {"$project":   {"embedding": 0}},
                 ]
                 results = []
                 async for doc in db["discrepancies"].aggregate(pipeline):
@@ -236,11 +250,23 @@ def create_mcp_asgi_app():
     """
     Raw ASGI app — bypasses Starlette Route response wrapping entirely.
     Serves MCP over HTTP/SSE transport at /sse and /messages/.
+    Protected by a shared Bearer token derived from SECRET_KEY.
     """
     from mcp.server.sse import SseServerTransport
     from starlette.requests import Request
 
     sse = SseServerTransport("/mcp/messages/")
+
+    def _get_auth_header(scope: dict) -> str:
+        for k, v in scope.get("headers", []):
+            if k.lower() == b"authorization":
+                return v.decode("latin-1")
+        return ""
+
+    async def _reject(send, status: int = 403, body: bytes = b"Forbidden") -> None:
+        await send({"type": "http.response.start", "status": status,
+                    "headers": [[b"content-type", b"text/plain"]]})
+        await send({"type": "http.response.body", "body": body})
 
     async def handle_sse(request: Request):
         async with sse.connect_sse(
@@ -251,10 +277,17 @@ def create_mcp_asgi_app():
             )
 
     class _MCPApp:
-        """Minimal ASGI app — no Starlette middleware, no double-response errors."""
         async def __call__(self, scope, receive, send):
             if scope["type"] != "http":
                 return
+
+            # Validate shared Bearer token (SECRET_KEY) on every HTTP request
+            from core.config import settings
+            auth = _get_auth_header(scope)
+            if auth != f"Bearer {settings.SECRET_KEY}":
+                await _reject(send, 403)
+                return
+
             path   = scope.get("path", "")
             method = scope.get("method", "GET")
 
@@ -266,9 +299,7 @@ def create_mcp_asgi_app():
                 await sse.handle_post_message(scope, receive, send)
 
             else:
-                await send({"type": "http.response.start", "status": 404,
-                            "headers": [[b"content-type", b"text/plain"]]})
-                await send({"type": "http.response.body", "body": b"Not found"})
+                await _reject(send, 404, b"Not found")
 
     return _MCPApp()
 

@@ -9,7 +9,7 @@ import re
 from fastapi import APIRouter, Depends, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from api.dependencies import get_db
+from api.dependencies import get_db, get_current_user
 from core.config import settings
 
 router = APIRouter()
@@ -19,6 +19,7 @@ router = APIRouter()
 async def global_search(
     q: str = Query(..., min_length=1, max_length=200),
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     query = q.strip()
     if not query:

@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from api.dependencies import get_db
+from api.dependencies import get_db, get_current_user
 from core.config import settings
 from models.reconciliation_session import (
     ReconciliationSessionCreate,
@@ -28,12 +28,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _ALLOWED_EXTENSIONS = {".xlsx", ".xls", ".csv", ".pdf"}
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 @router.post("/sessions/start", response_model=ReconciliationSessionResponse)
 async def start_reconciliation_session(
     payload: ReconciliationSessionCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     company_svc = CompanyService(db)
 
@@ -87,6 +89,7 @@ async def validate_portal_token(token: str, db: AsyncIOMotorDatabase = Depends(g
 async def list_sessions_by_counterparty(
     counterparty_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     session_svc = ReconciliationSessionService(db)
     return await session_svc.get_by_counterparty(counterparty_id)
@@ -96,6 +99,7 @@ async def list_sessions_by_counterparty(
 async def download_session_file(
     session_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     """Download the raw file that was uploaded during a portal session."""
     from bson import ObjectId
@@ -136,6 +140,7 @@ async def download_session_file(
 async def delete_session_file(
     session_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     """
     Permanently delete the stored file for a session.
@@ -275,6 +280,8 @@ async def upload_counterparty_ledger(
     file_bytes = await file.read()
     if not file_bytes:
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+    if len(file_bytes) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 10 MB.")
 
     # Persist raw file immediately (before parsing, so it's recoverable on parse error)
     file_svc  = FileStorageService(db, settings.UPLOAD_DIR)

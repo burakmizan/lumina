@@ -4,7 +4,6 @@ import type { NextRequest } from 'next/server'
 const PUBLIC_PREFIXES = [
   '/login',
   '/api/auth',
-  '/api/v1',
   '/_next',
   '/favicon.ico',
   '/uploads',

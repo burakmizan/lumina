@@ -1,9 +1,10 @@
 """
 FastAPI dependency injection.
 
-get_db          — yields AsyncIOMotorDatabase
-get_current_user — validates JWT from Authorization header, returns user dict
-require_permission(key) — returns a dependency that enforces a specific permission
+get_db              — yields AsyncIOMotorDatabase
+get_current_user    — validates JWT from Authorization header, returns user dict
+require_permission  — factory that enforces a specific RBAC permission
+verify_erp_api_key  — validates X-API-Key header against stored bcrypt hashes
 """
 
 from fastapi import Depends, HTTPException, Request, status
@@ -68,3 +69,28 @@ def require_permission(permission: str):
         return user
 
     return _check
+
+
+async def verify_erp_api_key(
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    """Validates X-API-Key header against stored bcrypt hashes in erp_integrations."""
+    from passlib.context import CryptContext
+
+    api_key = request.headers.get("X-API-Key", "")
+    if not api_key or not api_key.startswith("lmn_"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing ERP API key",
+        )
+
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    # Narrow the search using the stored key prefix (first 14 chars + ellipsis)
+    key_prefix = api_key[:14] + "…"
+    doc = await db["erp_integrations"].find_one({"key_prefix": key_prefix})
+    if not doc or not pwd_ctx.verify(api_key, doc.get("key_hash", "")):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid ERP API key",
+        )

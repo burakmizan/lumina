@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from api.dependencies import get_db
+from api.dependencies import get_db, get_current_user, require_permission
 
 router = APIRouter()
 
@@ -12,6 +12,7 @@ async def trigger_reconciliation(
     company_b_id: str,
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.run")),
 ):
     """
     Trigger the reconciliation agent asynchronously — returns run_id immediately
@@ -35,10 +36,12 @@ async def trigger_reconciliation(
         "message": f"Reconciliation agent started for {company_a_id} ↔ {company_b_id}",
     }
 
+
 @router.get("/runs")
 async def list_agent_runs(
     limit: int = Query(50, le=200),
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     """Return all agent runs ordered by most recent, including steps."""
     runs = []
@@ -47,8 +50,13 @@ async def list_agent_runs(
         runs.append(doc)
     return runs
 
+
 @router.get("/status/{run_id}")
-async def get_run_status(run_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def get_run_status(
+    run_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
     doc = await db["agent_runs"].find_one({"_id": run_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Run not found")

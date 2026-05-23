@@ -6,6 +6,8 @@ mounted at /mcp/sse on the same FastAPI process.
 
 Falls back to in-process mode if the HTTP endpoint is not yet ready
 (e.g., during startup or testing), so the system is always available.
+
+HTTP requests are authenticated with Authorization: Bearer {SECRET_KEY}.
 """
 import json
 import logging
@@ -16,7 +18,6 @@ from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# MCP server is mounted on the same process — use loopback
 _MCP_BASE_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8000/mcp")
 
 # Cache probe result — only probe once per process lifetime
@@ -45,12 +46,18 @@ class MCPMongoClient:
     async def __aexit__(self, *args):
         pass
 
+    def _auth_headers(self) -> dict:
+        return {"Authorization": f"Bearer {settings.SECRET_KEY}"}
+
     async def _probe_http(self):
-        """Check if HTTP MCP endpoint is reachable using streaming (SSE never closes)."""
+        """Check if HTTP MCP endpoint is reachable (includes auth header)."""
         try:
             import httpx
             async with httpx.AsyncClient(timeout=3.0) as client:
-                async with client.stream("GET", f"{_MCP_BASE_URL}/sse") as resp:
+                async with client.stream(
+                    "GET", f"{_MCP_BASE_URL}/sse",
+                    headers=self._auth_headers(),
+                ) as resp:
                     if resp.status_code in (200, 307):
                         self._use_http = True
                         logger.info("[MCP] HTTP transport available — using real MCP protocol")
@@ -75,11 +82,12 @@ class MCPMongoClient:
                 "params": {"name": tool_name, "arguments": arguments},
                 "id": 1,
             }
+            headers = {"Content-Type": "application/json", **self._auth_headers()}
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(
                     f"{_MCP_BASE_URL}/messages",
                     json=payload,
-                    headers={"Content-Type": "application/json"},
+                    headers=headers,
                 )
                 data = resp.json()
                 content = data.get("result", {}).get("content", [])

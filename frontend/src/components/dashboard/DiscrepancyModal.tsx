@@ -1,8 +1,47 @@
 'use client'
-import { X, Zap, Mail, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { X, Zap, Mail, AlertCircle, CheckCircle2, Lightbulb, Calendar, ArrowRight, TrendingDown } from 'lucide-react'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import type { Company, Discrepancy } from '@/types'
+import { cn } from '@/lib/utils'
+
+// ── Fix suggestion engine ──────────────────────────────────────────────────────
+function computeFixSuggestion(disc: Discrepancy): string | null {
+  const a = disc.company_a_amount ?? 0
+  const b = disc.company_b_amount ?? 0
+  if (disc.discrepancy_type === 'missing_record') return null
+  if (!a && !b) return null
+
+  if (a && b) {
+    // Decimal placement (10x or 100x off)
+    if (Math.abs(a / b - 10) < 0.02 || Math.abs(b / a - 10) < 0.02) {
+      const correct = Math.min(Math.abs(a), Math.abs(b))
+      return `Decimal placement error detected — suggested correction: ${formatCurrency(correct * (a > b ? -1 : 1) < 0 ? correct : correct)}`
+    }
+    if (Math.abs(a / b - 100) < 0.02 || Math.abs(b / a - 100) < 0.02) {
+      return `100× decimal error — suggested correction: ${formatCurrency(Math.min(Math.abs(a), Math.abs(b)))}`
+    }
+
+    // Sign reversal (amounts cancel)
+    if (Math.abs(a + b) < 0.01) {
+      return 'Sign reversal detected — amounts cancel out. Verify if this is a credit/debit mismatch.'
+    }
+
+    // Rounding (< 0.5% diff)
+    const pct = Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b))
+    if (pct < 0.005) {
+      return `Rounding difference (${(pct * 100).toFixed(3)}%) — likely a currency rounding or truncation issue.`
+    }
+
+    // VAT / tax rate
+    if (Math.abs(pct - 0.18) < 0.01) return 'Difference matches 18% VAT — verify if one party excluded tax.'
+    if (Math.abs(pct - 0.20) < 0.01) return 'Difference matches 20% VAT — verify if one party excluded tax.'
+    if (Math.abs(pct - 0.10) < 0.01) return 'Difference matches 10% — possible partial payment or discount applied.'
+  }
+
+  return 'Verify if this transaction was partially applied or split across multiple entries in one system.'
+}
 
 interface Props {
   discrepancy: Discrepancy
@@ -11,6 +50,24 @@ interface Props {
   onApprove: () => void
   isApproving: boolean
   approveError?: string | null
+}
+
+// ── Fix Suggestion Card ────────────────────────────────────────────────────────
+function FixSuggestionCard({ suggestion }: { suggestion: string }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50/60">
+      <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Lightbulb className="w-3.5 h-3.5 text-amber-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider mb-1">
+          Lumina Fix Suggestion
+        </p>
+        <p className="text-xs text-amber-800 leading-relaxed">{suggestion}</p>
+      </div>
+    </div>
+  )
 }
 
 export function DiscrepancyModal({
@@ -56,43 +113,144 @@ export function DiscrepancyModal({
           </button>
         </div>
 
-        {/* ── Amount Comparison ── */}
-        <div className="px-6 py-5 border-b border-surface-border">
-          <p className="text-[11px] uppercase tracking-widest text-text-muted mb-3">Amount Comparison</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl p-4 border border-slate-200">
-              <p className="text-xs text-text-muted mb-1 truncate" title={companyA?.name}>
-                {companyA?.name ?? 'Company A'}
-              </p>
-              <p className="text-xl font-bold text-slate-900">
-                {formatCurrency(disc.company_a_amount)}
+        {/* ── Amount Comparison (upgraded) ── */}
+        <div className="px-6 py-5 border-b border-slate-200">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">Amount Comparison</p>
+            <span className="text-[10px] text-slate-400 font-mono">{disc.ledger_ref}</span>
+          </div>
+
+          {/* Side-by-side diff */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            {/* Company A */}
+            <div className={cn(
+              'rounded-xl p-4 border-2 transition-colors',
+              disc.company_a_amount != null && disc.company_b_amount != null
+                ? Math.abs((disc.company_a_amount ?? 0) - (disc.company_b_amount ?? 0)) > 0.01
+                  ? 'border-red-200 bg-red-50/50'
+                  : 'border-emerald-200 bg-emerald-50/50'
+                : 'border-slate-200 bg-white',
+            )}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide truncate">
+                  {companyA?.name ?? 'Company A'}
+                </p>
+              </div>
+              <p className={cn(
+                'text-2xl font-bold tabular-nums',
+                disc.company_a_amount != null && disc.company_b_amount != null
+                  ? Math.abs((disc.company_a_amount ?? 0) - (disc.company_b_amount ?? 0)) > 0.01
+                    ? 'text-red-600'
+                    : 'text-emerald-600'
+                  : 'text-slate-900',
+              )}>
+                {disc.company_a_amount != null ? formatCurrency(disc.company_a_amount) : <span className="text-slate-400 text-base">—</span>}
               </p>
               {companyA?.reconciliation_email && (
-                <p className="text-[10px] text-text-muted mt-1 truncate">{companyA.reconciliation_email}</p>
+                <p className="text-[10px] text-slate-400 mt-1.5 truncate">{companyA.reconciliation_email}</p>
               )}
             </div>
 
-            <div className="rounded-xl p-4 border border-red-500/25 bg-red-500/10 flex flex-col items-center justify-center text-center">
-              <p className="text-[11px] text-text-muted mb-1">Difference</p>
-              <p className="text-xl font-bold text-red-400">
-                {disc.difference != null ? formatCurrency(disc.difference) : '—'}
-              </p>
-              <p className="text-[10px] text-red-400/60 mt-1">unreconciled</p>
-            </div>
-
-            <div className="bg-surface-primary rounded-xl p-4 border border-surface-border">
-              <p className="text-xs text-text-muted mb-1 truncate" title={companyB?.name}>
-                {companyB?.name ?? 'Company B'}
-              </p>
-              <p className="text-xl font-bold text-slate-900">
+            {/* Company B */}
+            <div className={cn(
+              'rounded-xl p-4 border-2 transition-colors',
+              disc.company_b_amount == null
+                ? 'border-red-300 bg-red-50'
+                : disc.company_a_amount != null
+                  ? Math.abs((disc.company_a_amount ?? 0) - (disc.company_b_amount ?? 0)) > 0.01
+                    ? 'border-red-200 bg-red-50/50'
+                    : 'border-emerald-200 bg-emerald-50/50'
+                  : 'border-slate-200 bg-white',
+            )}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <div className="w-2 h-2 rounded-full bg-purple-400" />
+                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide truncate">
+                  {companyB?.name ?? 'Company B'}
+                </p>
+              </div>
+              <p className={cn(
+                'text-2xl font-bold tabular-nums',
+                disc.company_b_amount == null
+                  ? 'text-red-500 text-base'
+                  : disc.company_a_amount != null
+                    ? Math.abs((disc.company_a_amount ?? 0) - (disc.company_b_amount ?? 0)) > 0.01
+                      ? 'text-red-600'
+                      : 'text-emerald-600'
+                    : 'text-slate-900',
+              )}>
                 {disc.company_b_amount != null
                   ? formatCurrency(disc.company_b_amount)
-                  : <span className="text-red-400 text-base">NOT FOUND</span>}
+                  : <span className="text-red-500 font-semibold text-sm">NOT FOUND</span>}
               </p>
               {companyB?.reconciliation_email && (
-                <p className="text-[10px] text-text-muted mt-1 truncate">{companyB.reconciliation_email}</p>
+                <p className="text-[10px] text-slate-400 mt-1.5 truncate">{companyB.reconciliation_email}</p>
               )}
             </div>
+          </div>
+
+          {/* Difference bar */}
+          {disc.difference != null && disc.difference > 0 && (
+            <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 mb-3">
+              <TrendingDown className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <span className="text-sm font-bold text-red-700">{formatCurrency(disc.difference)} difference</span>
+              <span className="text-xs text-red-400 ml-auto">unreconciled amount</span>
+            </div>
+          )}
+
+          {/* Fix Suggestion */}
+          {(() => {
+            const suggestion = computeFixSuggestion(disc)
+            if (!suggestion) return null
+            return (
+              <FixSuggestionCard suggestion={suggestion} />
+            )
+          })()}
+        </div>
+
+        {/* ── Timeline ── */}
+        <div className="px-6 py-4 border-b border-slate-200">
+          <p className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-3">Event Timeline</p>
+          <div className="flex items-center gap-0">
+            {[
+              {
+                label: 'Detected',
+                date: disc.detected_at,
+                icon: <AlertCircle className="w-3.5 h-3.5" />,
+                color: 'bg-amber-100 border-amber-300 text-amber-700',
+                dot: 'bg-amber-400',
+              },
+              {
+                label: disc.status === 'resolved' ? 'Resolved' : disc.status === 'email_sent' ? 'Email Sent' : 'Pending',
+                date: disc.resolved_at ?? null,
+                icon: disc.status === 'resolved'
+                  ? <CheckCircle2 className="w-3.5 h-3.5" />
+                  : <Mail className="w-3.5 h-3.5" />,
+                color: disc.status === 'resolved'
+                  ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                  : 'bg-slate-100 border-slate-300 text-slate-500',
+                dot: disc.status === 'resolved' ? 'bg-emerald-400' : 'bg-slate-300',
+              },
+            ].map((step, i, arr) => (
+              <div key={i} className="flex items-center flex-1">
+                <div className="flex flex-col items-center min-w-[90px]">
+                  <div className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-semibold', step.color)}>
+                    {step.icon}
+                    {step.label}
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1 font-mono">
+                    {step.date ? formatDate(step.date) : '—'}
+                  </p>
+                </div>
+                {i < arr.length - 1 && (
+                  <div className="flex-1 flex items-center justify-center px-2 mb-4">
+                    <div className="flex-1 h-px bg-slate-200" />
+                    <ArrowRight className="w-3 h-3 text-slate-300 flex-shrink-0 mx-1" />
+                    <div className="flex-1 h-px bg-slate-200" />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

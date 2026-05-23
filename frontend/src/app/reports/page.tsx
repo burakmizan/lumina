@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -14,6 +14,148 @@ import { getAgentRuns, getCompanies } from '@/lib/api'
 import { api } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
 import * as XLSX from 'xlsx'
+
+// ── Heatmap cell color ────────────────────────────────────────────────────────
+function cellColor(count: number, max: number): string {
+  if (count <= 0) return '#f1f5f9'           // empty / future
+  const ratio = count / Math.max(max, 1)
+  if (ratio < 0.15) return '#bbf7d0'         // very light green
+  if (ratio < 0.35) return '#4ade80'         // light green
+  if (ratio < 0.60) return '#16a34a'         // medium green
+  if (ratio < 0.85) return '#15803d'         // dark green
+  return '#14532d'                           // darkest
+}
+
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+// Row indices 0=Sun,1=Mon,2=Tue,3=Wed,4=Thu,5=Fri,6=Sat — show Mon/Wed/Fri like GitHub
+const ROW_LABELS  = ['', 'Mon', '', 'Wed', '', 'Fri', '']
+
+interface HeatmapDay {
+  key: string
+  date: Date
+  count: number
+  month: number
+}
+
+function HeatmapSection({
+  data,
+}: {
+  data: { weeks: HeatmapDay[][]; maxCount: number; dayMap: Record<string, number> }
+}) {
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { weeks, maxCount } = data
+
+  const CELL = 11
+  const GAP  = 2
+  const UNIT = CELL + GAP
+
+  // Month labels: place at the column whose week contains the 1st of that month
+  const monthLabels: { label: string; col: number }[] = []
+  weeks.forEach((week, wi) => {
+    for (const day of week) {
+      if (!day.key || day.count === -1) continue
+      if (day.date.getDate() === 1) {
+        // Start of a new month — put label here
+        monthLabels.push({ label: MONTH_SHORT[day.date.getMonth()], col: wi })
+      }
+      break // only check the first valid day per week for month-start
+    }
+  })
+  // If no month label at column 0, add the month of the first visible day
+  if (!monthLabels.find(m => m.col === 0)) {
+    const firstDay = weeks[0]?.find(d => d.key && d.count !== -1)
+    if (firstDay) {
+      monthLabels.unshift({ label: MONTH_SHORT[firstDay.date.getMonth()], col: 0 })
+    }
+  }
+
+  const totalDiscrepancies = Object.values(data.dayMap).reduce((s, v) => s + v, 0)
+  const activeDays = Object.keys(data.dayMap).length
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-900">Discrepancy Heatmap</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {totalDiscrepancies} discrepanc{totalDiscrepancies !== 1 ? 'ies' : 'y'} across {activeDays} active day{activeDays !== 1 ? 's' : ''} · last 12 months
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
+          <span>Less</span>
+          {['#f1f5f9','#bbf7d0','#4ade80','#16a34a','#15803d','#14532d'].map(c => (
+            <div key={c} className="w-3 h-3 rounded-sm flex-shrink-0"
+              style={{ background: c, border: '1px solid rgba(0,0,0,0.07)' }} />
+          ))}
+          <span>More</span>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto relative" ref={containerRef}>
+        <div className="flex" style={{ userSelect: 'none' }}>
+
+          {/* Day-of-week labels */}
+          <div className="flex-shrink-0 mr-1.5" style={{ paddingTop: 18 }}>
+            {ROW_LABELS.map((lbl, i) => (
+              <div key={i} className="text-[9px] text-slate-400 font-medium text-right pr-1 flex items-center justify-end"
+                style={{ height: UNIT, minWidth: 26 }}>
+                {lbl}
+              </div>
+            ))}
+          </div>
+
+          {/* Grid data */}
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex flex-col relative" style={{ width: UNIT, marginRight: GAP }}>
+              {/* Month label */}
+              {monthLabels.find(m => m.col === wi) && (
+                <span className="absolute -top-[18px] text-[10px] text-slate-400 font-medium whitespace-nowrap">
+                  {monthLabels.find(m => m.col === wi)?.label}
+                </span>
+              )}
+              {week.map((day, di) => (
+                <div
+                  key={di}
+                  className="rounded-[2px] transition-all hover:ring-1 hover:ring-slate-400 cursor-pointer"
+                  style={{
+                    width: CELL,
+                    height: CELL,
+                    marginBottom: GAP,
+                    background: day.count === -1 ? 'transparent' : cellColor(day.count, maxCount),
+                    visibility: day.count === -1 ? 'hidden' : 'visible'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (day.count === -1) return;
+                    const rect = (e.target as HTMLElement).getBoundingClientRect()
+                    const container = (e.target as HTMLElement).closest('.relative')?.getBoundingClientRect()
+                    setTip({
+                      x: rect.left - (container?.left ?? 0) + 6,
+                      y: rect.top  - (container?.top  ?? 0) - 32,
+                      text: `${day.key}: ${day.count} discrepanc${day.count !== 1 ? 'ies' : 'y'}`,
+                    })
+                  }}
+                  onMouseLeave={() => setTip(null)}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tooltip */}
+      {tip && (
+        <div
+          className="absolute z-20 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[10px] font-medium shadow-xl pointer-events-none whitespace-nowrap"
+          style={{ left: tip.x, top: tip.y }}
+        >
+          {tip.text}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,7 +219,7 @@ export default function ReportsPage() {
 
   const { data: allDiscrepancies = [] } = useQuery<{
     id: string; company_b_id: string; discrepancy_type: string;
-    status: string; difference: number; detected_at: string
+    status: string; difference: number; detected_at: string;
   }[]>({
     queryKey: ['discrepancies'],
     queryFn: () => api.get('/api/v1/discrepancies/').then(r => r.data),
@@ -136,6 +278,55 @@ export default function ReportsPage() {
     .map(([id, stats]) => ({ id, name: companyMap[id] || id.slice(-8), ...stats }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
+
+  // ── Heatmap data — discrepancies per day for last 365 days ───────────────
+  const heatmapData = useMemo(() => {
+    const dayMap: Record<string, number> = {}
+    allDiscrepancies.forEach(d => {
+      if (d.detected_at) {
+        const day = d.detected_at.slice(0, 10)
+        dayMap[day] = (dayMap[day] || 0) + 1
+      }
+    })
+
+    const today = new Date()
+    // Align to start of week (Sunday)
+    const startDay = new Date(today)
+    startDay.setDate(startDay.getDate() - 364)
+    // Go back to Sunday
+    startDay.setDate(startDay.getDate() - startDay.getDay())
+
+    const weeks: { key: string; date: Date; count: number; month: number }[][] = []
+    let week: typeof weeks[0] = []
+    const cursor = new Date(startDay)
+
+    while (cursor <= today || week.length > 0) {
+      const key = cursor.toISOString().slice(0, 10)
+      week.push({
+        key,
+        date: new Date(cursor),
+        count: dayMap[key] || 0,
+        month: cursor.getMonth(),
+      })
+      if (week.length === 7) {
+        weeks.push(week)
+        week = []
+      }
+      cursor.setDate(cursor.getDate() + 1)
+      if (cursor > today && week.length > 0) {
+        // Pad remaining days
+        while (week.length < 7) {
+          week.push({ key: '', date: new Date(cursor), count: -1, month: cursor.getMonth() })
+          cursor.setDate(cursor.getDate() + 1)
+        }
+        weeks.push(week)
+        break
+      }
+    }
+
+    const maxCount = Math.max(...Object.values(dayMap), 1)
+    return { weeks, maxCount, dayMap }
+  }, [allDiscrepancies])
 
   const runsByDay = (runs as AgentRun[]).reduce<Record<string, number>>((acc: Record<string, number>, r: AgentRun) => {
     const day = r.started_at?.slice(0, 10) || ''
@@ -398,6 +589,11 @@ export default function ReportsPage() {
               <div className="h-48 flex items-center justify-center text-sm text-slate-400">No data yet</div>
             )}
           </div>
+        </div>
+
+        {/* ── Discrepancy Heatmap ── */}
+        <div className="relative">
+          <HeatmapSection data={heatmapData} />
         </div>
 
         {/* Activity Chart */}

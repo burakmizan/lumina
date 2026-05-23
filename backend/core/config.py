@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
     SECRET_KEY: str = "change-me-in-production"
-    DEBUG: bool = True
+    DEBUG: bool = False
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://lumina-iota-brown.vercel.app"]
     FRONTEND_BASE_URL: str = "http://localhost:3000"
 

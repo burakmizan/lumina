@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import google.generativeai as genai
 
-from api.dependencies import get_db
+from api.dependencies import get_db, get_current_user
 from core.config import settings
 
 router = APIRouter()
@@ -70,7 +70,6 @@ async def _fetch_live_context(context: Optional[dict], db: AsyncIOMotorDatabase)
             company = await db["companies"].find_one({"tax_id": context["tax_id"]})
             if company:
                 cid = str(company["_id"])
-                # fetch recent discrepancies for this company
                 discs = []
                 async for doc in db["discrepancies"].find({
                     "$or": [{"company_a_id": cid}, {"company_b_id": cid}]
@@ -106,6 +105,7 @@ async def _fetch_live_context(context: Optional[dict], db: AsyncIOMotorDatabase)
 async def gemini_chat(
     request: ChatRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -121,7 +121,6 @@ async def gemini_chat(
 
     from agent.adk_engine import ask_lumina
 
-    # Build enriched message with context
     full_message = request.message
     if request.context:
         full_message = (

@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
-from api.dependencies import get_db
+from api.dependencies import get_db, get_current_user, require_permission
 from core.config import settings
 from services.template_service import generate_template
 from models.master_balance import (
@@ -38,8 +38,9 @@ router = APIRouter()
 # ── Excel template downloads ──────────────────────────────────────────────────
 
 @router.get("/template/master-balances")
-async def download_master_balances_template():
-    """Return a pre-formatted Excel template for the master balances import."""
+async def download_master_balances_template(
+    _: dict = Depends(get_current_user),
+):
     data, filename = await generate_template("master_balances")
     return StreamingResponse(
         io.BytesIO(data),
@@ -49,8 +50,9 @@ async def download_master_balances_template():
 
 
 @router.get("/template/statement-of-account")
-async def download_statement_of_account_template():
-    """Return a pre-formatted Excel template for the Statement of Account import."""
+async def download_statement_of_account_template(
+    _: dict = Depends(get_current_user),
+):
     data, filename = await generate_template("statement_of_account")
     return StreamingResponse(
         io.BytesIO(data),
@@ -60,8 +62,9 @@ async def download_statement_of_account_template():
 
 
 @router.get("/template/internal-statement")
-async def download_internal_statement_template():
-    """Return a pre-formatted Excel template for internal statement uploads."""
+async def download_internal_statement_template(
+    _: dict = Depends(get_current_user),
+):
     data, filename = await generate_template("internal_statement")
     return StreamingResponse(
         io.BytesIO(data),
@@ -101,7 +104,10 @@ class BulkDeleteRequest(BaseModel):
 # ── List / Import ─────────────────────────────────────────────────────────────
 
 @router.get("/", response_model=List[MasterBalanceRecord])
-async def list_master_balances(db: AsyncIOMotorDatabase = Depends(get_db)):
+async def list_master_balances(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
     return await MasterBalanceService(db).get_all()
 
 
@@ -109,6 +115,7 @@ async def list_master_balances(db: AsyncIOMotorDatabase = Depends(get_db)):
 async def import_master_balances(
     file: UploadFile = File(...),
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
     filename = file.filename or "upload.xlsx"
     _check_extension(filename)
@@ -137,13 +144,8 @@ async def import_master_balances(
 async def import_statement_of_account(
     file: UploadFile = File(...),
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
-    """
-    Parse a consolidated Statement of Account file containing rows for multiple
-    clients.  Each row must have a `Customer Code` column that maps to an existing
-    master_balance record.  Rows are auto-routed per client and upserted as
-    Company A (Our Data) ledger entries.  Status flips to ready_for_external.
-    """
     filename = file.filename or "soa_import.xlsx"
     _check_extension(filename)
 
@@ -189,6 +191,7 @@ async def upload_internal_statement(
     counterparty_id: str,
     file: UploadFile = File(...),
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
     company_svc  = CompanyService(db)
     counterparty = await company_svc.get_by_id(counterparty_id)
@@ -209,7 +212,6 @@ async def upload_internal_statement(
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-    # Persist raw file for download capability
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     await file_svc.save_file(
         file_bytes, filename, source="internal_statement",
@@ -243,6 +245,7 @@ async def upload_internal_statement(
 async def get_statement_entries(
     counterparty_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     return await MasterBalanceService(db).get_statement_entries(counterparty_id)
 
@@ -251,8 +254,8 @@ async def get_statement_entries(
 async def get_statement_files(
     counterparty_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
-    """Return all stored statement files for a counterparty."""
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     return await file_svc.list_by_counterparty(counterparty_id)
 
@@ -263,8 +266,8 @@ async def get_statement_files(
 async def download_file(
     storage_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
-    """Download any stored file by its storage_id."""
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     result   = await file_svc.get_file(storage_id)
     if not result:
@@ -281,8 +284,8 @@ async def download_file(
 async def delete_file(
     storage_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
-    """Permanently delete a stored file object (disk + DB record)."""
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     deleted  = await file_svc.delete_file(storage_id)
     if not deleted:
@@ -296,6 +299,7 @@ async def delete_file(
 async def send_magic_link_from_reconciliation(
     counterparty_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.run")),
 ):
     company_svc = CompanyService(db)
 
@@ -365,6 +369,7 @@ async def send_magic_link_from_reconciliation(
 async def bulk_delete_master_balances(
     payload: BulkDeleteRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
     if not payload.ids:
         raise HTTPException(status_code=400, detail="No IDs provided.")
@@ -380,8 +385,8 @@ async def bulk_delete_master_balances(
 async def delete_master_balance(
     record_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
-    """Delete a master balance record and cascade: statement ledger entries + stored files."""
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     deleted  = await MasterBalanceService(db).delete_by_id(record_id, file_svc)
     if not deleted:
@@ -392,7 +397,10 @@ async def delete_master_balance(
 # ── Global Statements archive ─────────────────────────────────────────────────
 
 @router.get("/global-statements", response_model=List[GlobalStatementRecord])
-async def list_global_statements(db: AsyncIOMotorDatabase = Depends(get_db)):
+async def list_global_statements(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
     return await MasterBalanceService(db).get_global_statements()
 
 
@@ -400,6 +408,7 @@ async def list_global_statements(db: AsyncIOMotorDatabase = Depends(get_db)):
 async def download_global_statement(
     statement_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
 ):
     from bson import ObjectId
     doc = await db["global_statements"].find_one({"_id": ObjectId(statement_id)})
@@ -426,6 +435,7 @@ async def download_global_statement(
 async def delete_global_statement(
     statement_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.view")),
 ):
     file_svc = FileStorageService(db, settings.UPLOAD_DIR)
     deleted  = await MasterBalanceService(db).delete_global_statement(statement_id, file_svc)
