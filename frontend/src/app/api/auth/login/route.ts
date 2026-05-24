@@ -34,9 +34,8 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24 * 7, // 7 gün
     })
 
-    // Python API'sine yapılacak yetkili istekler için Token çerezi (Axios okuyabilsin diye httpOnly: false)
     response.cookies.set('lumina_token', data.access_token, {
-      httpOnly: false, 
+      httpOnly: true, 
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',

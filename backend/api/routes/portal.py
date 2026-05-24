@@ -193,6 +193,10 @@ async def _process_portal_upload(
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
         
+        logger.info(f"[HACKATHON-TEST] PORTAL PARSED ROWS COUNT: {len(rows)}")
+        for idx, row_data in enumerate(rows):
+            logger.info(f"[HACKATHON-TEST] ROW {idx}: {row_data}")
+        
         if rows:
             headers = [str(c).lower().strip() if c is not None else "" for c in rows[0]]
             

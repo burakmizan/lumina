@@ -142,7 +142,7 @@ export default function DashboardPage() {
   return (
     <AppShell>
       {/* Page header with Run All */}
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-sm text-slate-500 mt-0.5">Real-time B2B reconciliation overview</p>
@@ -220,7 +220,7 @@ export default function DashboardPage() {
       {analytics && <DiscrepancyAnalytics analytics={analytics} companyMap={companyMap} />}
 
       {/* ── Bottom Row: Feed + Activity ── */}
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
         <div className="flex-1 min-w-0">
         {/* ── Discrepancy Feed ── */}
         <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden">
@@ -323,7 +323,7 @@ export default function DashboardPage() {
       </div>{/* end flex-1 */}
 
         {/* ── Activity Feed ── */}
-        <div className="w-[280px] flex-shrink-0 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div className="w-full lg:w-[280px] lg:flex-shrink-0 bg-white border border-slate-200 rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-[#29BE98]" />

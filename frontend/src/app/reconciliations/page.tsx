@@ -6,7 +6,7 @@ import {
   Upload, X, FileSpreadsheet, CheckCircle2, AlertCircle,
   Loader2, ChevronRight, FileUp, Eye, Mail, ExternalLink,
   Trash2, Download, FolderOpen, FileText, MoreHorizontal,
-  Archive, Users, FileDown, Zap
+  Archive, Users, FileDown, Zap, MoreVertical,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { GeminiContextButton } from '@/components/ui/GeminiContextButton'
@@ -1044,18 +1044,20 @@ export default function ReconciliationsPage() {
             {/* Import SOA */}
             <button
               onClick={() => setShowSOA(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/25 text-[#2597F8] text-sm font-semibold hover:bg-[#2597F8]/20 transition-colors"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/25 text-[#2597F8] text-sm font-semibold hover:bg-[#2597F8]/20 transition-colors"
             >
               <Archive className="w-4 h-4" />
-              Import Statement of Account
+              <span className="hidden sm:inline">Import Statement of Account</span>
+              <span className="sm:hidden">Import SOA</span>
             </button>
             {/* Import Master Balances */}
             <button
               onClick={() => setShowImport(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#29BE98] text-white text-sm font-semibold hover:bg-[#29BE98]/90 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-[#29BE98] text-white text-sm font-semibold hover:bg-[#29BE98]/90 transition-colors shadow-sm"
             >
               <Upload className="w-4 h-4" />
-              Import Master Balances
+              <span className="hidden sm:inline">Import Master Balances</span>
+              <span className="sm:hidden">Import</span>
             </button>
           </div>
         </div>
@@ -1077,9 +1079,9 @@ export default function ReconciliationsPage() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          {/* Column headers */}
+          {/* Column headers — desktop only */}
           <div
-            className="grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
+            className="hidden md:grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
             style={{ gridTemplateColumns: GRID }}
           >
             {/* Master checkbox */}
@@ -1119,110 +1121,168 @@ export default function ReconciliationsPage() {
                   <div
                     key={record.id}
                     className={cn(
-                      'grid items-center px-5 py-3.5 transition-colors cursor-default select-none',
+                      'transition-colors',
                       isChecked ? 'bg-[#2597F8]/10' : 'hover:bg-slate-50',
                     )}
-                    style={{ gridTemplateColumns: GRID }}
-                    onContextMenu={e => handleContextMenu(e, record)}
                   >
-                    {/* Checkbox */}
-                    <div className="flex items-center" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleOne(record.id)}
-                        className="w-4 h-4 rounded border-white/20 bg-[#0C1F30] accent-[#29BE98] cursor-pointer"
-                      />
+                    {/* ── Mobile Card (< md) ── */}
+                    <div
+                      className="block md:hidden px-4 py-3.5 cursor-default select-none border-b border-slate-100"
+                      onContextMenu={e => handleContextMenu(e, record)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="pt-0.5" onClick={e => e.stopPropagation()}>
+                          <input type="checkbox" checked={isChecked} onChange={() => toggleOne(record.id)} className="w-4 h-4 rounded border-slate-300 accent-[#29BE98] cursor-pointer" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-900 truncate">{record.company_name}</p>
+                              {record.auto_created_counterparty && <p className="text-[10px] text-amber-500">Auto-created</p>}
+                            </div>
+                            <button
+                              onClick={e => { e.stopPropagation(); setCtxMenu({ visible: true, x: e.clientX, y: e.clientY, record }) }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2.5">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Balance</p>
+                              <p className="text-sm font-semibold text-slate-900 tabular-nums">
+                                {formatCurrency(record.balance, record.currency)} <span className="text-xs text-slate-400 font-normal">{record.currency}</span>
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Status</p>
+                              {record.counterparty_id && discrepancyByCounterparty[record.counterparty_id]
+                                ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
+                                : <StatusBadge status={record.reconciliation_status} />}
+                            </div>
+                            {record.customer_code && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Code</p>
+                                <p className="text-xs text-slate-500">{record.customer_code}</p>
+                              </div>
+                            )}
+                            {record.tax_id && (
+                              <div>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Tax ID</p>
+                                <p className="text-xs font-mono text-slate-500 truncate">{record.tax_id}</p>
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                            <button onClick={e => { e.stopPropagation(); setDocsRecord(record) }} className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors" title="Files">
+                              <FolderOpen className="w-3.5 h-3.5" />
+                            </button>
+                            {record.reconciliation_status === 'ready_for_external' ? (
+                              <>
+                                <button onClick={e => { e.stopPropagation(); setViewRecord(record) }} className="p-2 rounded-lg text-[#29BE98] bg-[#29BE98]/10 hover:bg-[#29BE98]/20 transition-colors">
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); handleRunAgent(record) }} disabled={runningId === record.id} className="p-2 rounded-lg text-purple-500 bg-purple-500/10 hover:bg-purple-500/20 transition-colors disabled:opacity-50">
+                                  {runningId === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                                </button>
+                                <button onClick={e => { e.stopPropagation(); setSendRecord(record) }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors">
+                                  <Mail className="w-3 h-3" />Send Link
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); setUploadRecord(record) }}
+                                className={cn(
+                                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                                  record.counterparty_id ? 'bg-[#2597F8]/10 text-[#2597F8] hover:bg-[#2597F8]/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+                                )}
+                              >
+                                <FileUp className="w-3.5 h-3.5" />Upload Statement
+                              </button>
+                            )}
+                            <button onClick={e => { e.stopPropagation(); setDeleteTarget(record) }} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors ml-auto">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{record.company_name}</p>
-                      {record.auto_created_counterparty && (
-                        <p className="text-[10px] text-amber-500 mt-0.5">Auto-created counterparty</p>
-                      )}
-                    </div>
-                    <span className="text-sm text-slate-500 truncate">{record.customer_code || '—'}</span>
-                    <span className="text-sm text-slate-500 font-mono truncate">{record.tax_id || '—'}</span>
-                    <span className="text-sm font-medium text-slate-900 text-right tabular-nums flex items-center justify-end gap-0.5">
-                      {formatCurrency(record.balance, record.currency)}
-                      <GeminiContextButton
-                        page="Reconciliation List"
-                        context={{
-                          type:          'master_balance',
-                          company_name:  record.company_name,
-                          customer_code: record.customer_code,
-                          tax_id:        record.tax_id,
-                          balance:       record.balance,
-                          currency:      record.currency,
-                          status:        record.reconciliation_status,
-                        }}
-                      />
-                    </span>
-                    <span className="text-sm text-[#94A3B8]">{record.currency}</span>
-                    {record.counterparty_id && discrepancyByCounterparty[record.counterparty_id]
-                      ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
-                      : <StatusBadge status={record.reconciliation_status} />}
+                    {/* ── Desktop Row (≥ md) ── */}
+                    <div
+                      className="hidden md:grid items-center px-5 py-3.5 transition-colors cursor-default select-none"
+                      style={{ gridTemplateColumns: GRID }}
+                      onContextMenu={e => handleContextMenu(e, record)}
+                    >
+                      {/* Checkbox */}
+                      <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleOne(record.id)} className="w-4 h-4 rounded border-white/20 bg-[#0C1F30] accent-[#29BE98] cursor-pointer" />
+                      </div>
 
-                    {/* Row actions */}
-                    <div className="flex justify-end gap-1.5">
-                      {/* Docs button */}
-                      <button
-                        onClick={e => { e.stopPropagation(); setDocsRecord(record) }}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors"
-                        title="View statement files"
-                      >
-                        <FolderOpen className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{record.company_name}</p>
+                        {record.auto_created_counterparty && (
+                          <p className="text-[10px] text-amber-500 mt-0.5">Auto-created counterparty</p>
+                        )}
+                      </div>
+                      <span className="text-sm text-slate-500 truncate">{record.customer_code || '—'}</span>
+                      <span className="text-sm text-slate-500 font-mono truncate">{record.tax_id || '—'}</span>
+                      <span className="text-sm font-medium text-slate-900 text-right tabular-nums flex items-center justify-end gap-0.5">
+                        {formatCurrency(record.balance, record.currency)}
+                        <GeminiContextButton
+                          page="Reconciliation List"
+                          context={{
+                            type:          'master_balance',
+                            company_name:  record.company_name,
+                            customer_code: record.customer_code,
+                            tax_id:        record.tax_id,
+                            balance:       record.balance,
+                            currency:      record.currency,
+                            status:        record.reconciliation_status,
+                          }}
+                        />
+                      </span>
+                      <span className="text-sm text-[#94A3B8]">{record.currency}</span>
+                      {record.counterparty_id && discrepancyByCounterparty[record.counterparty_id]
+                        ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
+                        : <StatusBadge status={record.reconciliation_status} />}
 
-                      {record.reconciliation_status === 'ready_for_external' ? (
-                        <>
-                          <button
-                            onClick={e => { e.stopPropagation(); setViewRecord(record) }}
-                            title="View Statement"
-                            className="p-2 rounded-lg text-[#29BE98] bg-[#29BE98]/10 hover:bg-[#29BE98]/20 transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); handleRunAgent(record) }}
-                            disabled={runningId === record.id}
-                            title="Run Reconciliation Agent"
-                            className="p-2 rounded-lg text-purple-500 bg-purple-500/10 hover:bg-purple-500/20 transition-colors disabled:opacity-50"
-                          >
-                            {runningId === record.id
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <Zap className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); setSendRecord(record) }}
-                            title="Send Magic Link"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors"
-                          >
-                            <Mail className="w-3 h-3" />Send Link
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={e => { e.stopPropagation(); setUploadRecord(record) }}
-                          className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
-                            record.counterparty_id
-                              ? 'bg-[#2597F8]/10 text-[#2597F8] hover:bg-[#2597F8]/20'
-                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900',
-                          )}
-                        >
-                          <FileUp className="w-3.5 h-3.5" />Upload Statement<ChevronRight className="w-3 h-3" />
+                      {/* Row actions */}
+                      <div className="flex justify-end gap-1.5">
+                        <button onClick={e => { e.stopPropagation(); setDocsRecord(record) }} className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors" title="View statement files">
+                          <FolderOpen className="w-3.5 h-3.5" />
                         </button>
-                      )}
 
-                      {/* Delete */}
-                      <button
-                        onClick={e => { e.stopPropagation(); setDeleteTarget(record) }}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        title="Delete record"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        {record.reconciliation_status === 'ready_for_external' ? (
+                          <>
+                            <button onClick={e => { e.stopPropagation(); setViewRecord(record) }} title="View Statement" className="p-2 rounded-lg text-[#29BE98] bg-[#29BE98]/10 hover:bg-[#29BE98]/20 transition-colors">
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); handleRunAgent(record) }} disabled={runningId === record.id} title="Run Reconciliation Agent" className="p-2 rounded-lg text-purple-500 bg-purple-500/10 hover:bg-purple-500/20 transition-colors disabled:opacity-50">
+                              {runningId === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); setSendRecord(record) }} title="Send Magic Link" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors">
+                              <Mail className="w-3 h-3" />Send Link
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={e => { e.stopPropagation(); setUploadRecord(record) }}
+                            className={cn(
+                              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                              record.counterparty_id
+                                ? 'bg-[#2597F8]/10 text-[#2597F8] hover:bg-[#2597F8]/20'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900',
+                            )}
+                          >
+                            <FileUp className="w-3.5 h-3.5" />Upload Statement<ChevronRight className="w-3 h-3" />
+                          </button>
+                        )}
+
+                        <button onClick={e => { e.stopPropagation(); setDeleteTarget(record) }} className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete record">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )

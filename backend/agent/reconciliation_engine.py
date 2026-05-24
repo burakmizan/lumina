@@ -138,6 +138,10 @@ class ReconciliationEngine:
                 map_b[ref] = l
         all_refs = set(map_a.keys()) | set(map_b.keys())
 
+        logger.info(f"[HACKATHON-TEST] TUM BENZERSIZ REFERANSLAR (all_refs): {all_refs}")
+        logger.info(f"[HACKATHON-TEST] BIZIM KAYITLAR (map_a keys): {list(map_a.keys())}")
+        logger.info(f"[HACKATHON-TEST] PORTAL KAYITLARI (map_b keys): {list(map_b.keys())}")
+
         await self.db["discrepancies"].delete_many({
             "company_a_id": company_a_id,
             "company_b_id": company_b_id
@@ -160,6 +164,34 @@ class ReconciliationEngine:
                             from bson import ObjectId
                             selector = {"_id": ObjectId(rec_id)} if isinstance(rec_id, str) and ObjectId.is_valid(rec_id) else {"_id": rec_id}
                             await self.db["ledgers"].update_one(selector, {"$set": {"status": "matched"}})
+                
+                try:
+                    val_a_match = float(rec_a["amount"] if rec_a else 0.0)
+                    val_b_match = float(rec_b["amount"] if rec_b else 0.0)
+                    
+                    payload = DiscrepancyCreate(
+                        company_a_id=company_a_id,
+                        company_b_id=company_b_id,
+                        ledger_ref=ref,
+                        discrepancy_type="matched",
+                        company_a_amount=val_a_match,
+                        company_b_amount=val_b_match,
+                        difference=0.0,
+                    )
+                    disc = await self.disc_svc.create(payload, agent_run_id=run_id)
+                    await self.disc_svc.update(
+                        disc["id"],
+                        DiscrepancyUpdate(
+                            ai_analysis="The system verified that this record matches perfectly on both sides. No reconciliation action or email communication is required.",
+                            email_draft="",
+                            status="resolved",
+                        ),
+                    )
+                    found += 1
+                    logger.info(f"[Run {run_id}] Eşleşen kayıt arayüz için eklendi: {ref}")
+                except Exception as db_err:
+                    logger.error(f"[Run {run_id}] Eşleşen kayıt arayüze eklenemedi: {ref} - {db_err}")
+
                 continue
 
             try:

@@ -7,7 +7,7 @@ import {
   FolderOpen, X, FileSpreadsheet, FileText, Loader2,
   Trash2, Download, Send, Eye, Phone, Upload, FileDown,
   Activity, UserCheck, UserX, GitBranch, Plus,
-  LayoutList, Network,
+  LayoutList, Network, MoreVertical,
 } from 'lucide-react'
 import { CounterpartyMap, type MapCompany } from '@/components/counterparties/CounterpartyMap'
 import { AppShell } from '@/components/layout/AppShell'
@@ -1175,101 +1175,167 @@ export default function CounterpartiesPage() {
               return (
                 <div
                   key={company.id}
-                  onContextMenu={e => handleContextMenu(e, company)}
-                  onClick={() => handleRowClick(company)}
                   className={cn(
-                    'grid grid-cols-1 gap-3 md:gap-4 items-center px-5 py-3.5 transition-colors cursor-pointer select-none',
+                    'transition-colors',
                     isChecked ? 'bg-[#2597F8]/5' : 'hover:bg-slate-50',
                   )}
-                  style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 220px' }}
                 >
-                  {/* Checkbox */}
-                  <div className="flex items-center" onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" checked={isChecked} onChange={() => toggleOne(company.id)} className="w-4 h-4 rounded border-slate-300 bg-white accent-[#29BE98] cursor-pointer" />
-                  </div>
-
-                  {/* Company name */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/20 flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-4 h-4 text-[#2597F8]" />
+                  {/* ── Mobile Card (< md) ── */}
+                  <div
+                    className="block md:hidden px-4 py-3.5 cursor-pointer select-none border-b border-slate-100"
+                    onContextMenu={e => handleContextMenu(e, company)}
+                    onClick={() => handleRowClick(company)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex items-center pt-0.5" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={isChecked} onChange={() => toggleOne(company.id)} className="w-4 h-4 rounded border-slate-300 bg-white accent-[#29BE98] cursor-pointer" />
+                      </div>
+                      <div className="w-8 h-8 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/20 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-[#2597F8]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 truncate">{company.name}</p>
+                            <p className="text-xs text-slate-500 truncate">{company.contact_name}</p>
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleContextMenu(e, company) }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2.5">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Tax ID</p>
+                            <p className="text-xs font-mono text-slate-700 truncate">{company.tax_id}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Status</p>
+                            <span className={cn(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium border',
+                              isActive ? 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20' : 'bg-slate-100 text-slate-500 border-slate-200',
+                            )}>
+                              {isActive && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#29BE98] opacity-75" /><span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#29BE98]" /></span>}
+                              {isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Email</p>
+                            <p className="text-xs text-slate-500 truncate">{company.reconciliation_email}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5">
+                          <button onClick={e => { e.stopPropagation(); setDocsCompany(company) }} className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors" title="Docs">
+                            <FolderOpen className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={e => { e.stopPropagation(); setEditCompany(company) }} className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); handleStart(company.id) }}
+                            disabled={isBusy || !isActive}
+                            className={cn(
+                              'ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap',
+                              isActive && !isBusy
+                                ? 'bg-[#29BE98] text-white border-transparent hover:bg-[#29BE98]/90 shadow-sm'
+                                : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60',
+                            )}
+                          >
+                            {isBusy
+                              ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending…</>
+                              : <><PlayCircle className="w-3.5 h-3.5" />Send</>
+                            }
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{company.name}</p>
-                      <p className="text-xs text-slate-500 truncate">{company.contact_name}</p>
+                  </div>
+
+                  {/* ── Desktop Row (≥ md) ── */}
+                  <div
+                    className="hidden md:grid items-center px-5 py-3.5 cursor-pointer select-none"
+                    style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 220px' }}
+                    onContextMenu={e => handleContextMenu(e, company)}
+                    onClick={() => handleRowClick(company)}
+                  >
+                    {/* Checkbox */}
+                    <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={isChecked} onChange={() => toggleOne(company.id)} className="w-4 h-4 rounded border-slate-300 bg-white accent-[#29BE98] cursor-pointer" />
                     </div>
-                  </div>
 
-                  {/* Tax ID */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <Hash className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                    <span className="font-mono truncate">{company.tax_id}</span>
-                  </div>
+                    {/* Company name */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-[#2597F8]/10 border border-[#2597F8]/20 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-[#2597F8]" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{company.name}</p>
+                        <p className="text-xs text-slate-500 truncate">{company.contact_name}</p>
+                      </div>
+                    </div>
 
-                  {/* Email */}
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
-                    <Mail className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                    <span className="truncate">{company.reconciliation_email}</span>
-                  </div>
+                    {/* Tax ID */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <Hash className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span className="font-mono truncate">{company.tax_id}</span>
+                    </div>
 
-                  {/* Customer code */}
-                  <span className="text-xs text-slate-500 truncate font-mono">{company.customer_code || '—'}</span>
+                    {/* Email */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
+                      <Mail className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span className="truncate">{company.reconciliation_email}</span>
+                    </div>
 
-                  {/* Status */}
-                  <div>
-                    <span className={cn(
-                      'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium border',
-                      isActive
-                        ? 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20'
-                        : 'bg-slate-100 text-slate-500 border-slate-200',
-                    )}>
-                      {isActive && (
-                        <span className="relative flex h-1.5 w-1.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#29BE98] opacity-75" />
-                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#29BE98]" />
-                        </span>
-                      )}
-                      {isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
+                    {/* Customer code */}
+                    <span className="text-xs text-slate-500 truncate font-mono">{company.customer_code || '—'}</span>
 
-                  {/* Row actions */}
-                  <div className="flex items-center justify-end gap-1.5">
-                    <button
-                      onClick={e => { e.stopPropagation(); setDocsCompany(company) }}
-                      title="View documents"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors"
-                    >
-                      <FolderOpen className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); setEditCompany(company) }}
-                      title="Edit counterparty"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); setDeleteTarget(company) }}
-                      title="Delete counterparty"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleStart(company.id) }}
-                      disabled={isBusy || !isActive}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap',
-                        isActive && !isBusy
-                          ? 'bg-[#29BE98] text-white border-transparent hover:bg-[#29BE98]/90 shadow-sm'
-                          : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60',
-                      )}
-                    >
-                      {isBusy
-                        ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending…</>
-                        : <><PlayCircle className="w-3.5 h-3.5" />Send</>
-                      }
-                    </button>
+                    {/* Status */}
+                    <div>
+                      <span className={cn(
+                        'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-medium border',
+                        isActive
+                          ? 'bg-[#29BE98]/10 text-[#29BE98] border-[#29BE98]/20'
+                          : 'bg-slate-100 text-slate-500 border-slate-200',
+                      )}>
+                        {isActive && (
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#29BE98] opacity-75" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#29BE98]" />
+                          </span>
+                        )}
+                        {isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
+                    {/* Row actions */}
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={e => { e.stopPropagation(); setDocsCompany(company) }} title="View documents" className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors">
+                        <FolderOpen className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setEditCompany(company) }} title="Edit counterparty" className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setDeleteTarget(company) }} title="Delete counterparty" className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleStart(company.id) }}
+                        disabled={isBusy || !isActive}
+                        className={cn(
+                          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border whitespace-nowrap',
+                          isActive && !isBusy
+                            ? 'bg-[#29BE98] text-white border-transparent hover:bg-[#29BE98]/90 shadow-sm'
+                            : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60',
+                        )}
+                      >
+                        {isBusy
+                          ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Sending…</>
+                          : <><PlayCircle className="w-3.5 h-3.5" />Send</>
+                        }
+                      </button>
+                    </div>
                   </div>
                 </div>
               )

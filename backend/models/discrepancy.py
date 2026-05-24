@@ -7,7 +7,7 @@ class DiscrepancyBase(BaseModel):
     company_a_id: str = Field(..., description="MongoDB ObjectId of Company A (the initiating company)")
     company_b_id: str = Field(..., description="MongoDB ObjectId of Company B (the counterparty)")
     ledger_ref: str = Field(..., description="Transaction reference number with the discrepancy")
-    discrepancy_type: Literal["amount_mismatch", "missing_record", "date_mismatch", "duplicate"]
+    discrepancy_type: Literal["amount_mismatch", "missing_record", "date_mismatch", "duplicate", "matched"]
     company_a_amount: Optional[float] = Field(default=None, description="Amount as recorded by Company A")
     company_b_amount: Optional[float] = Field(default=None, description="Amount as recorded by Company B")
     difference: Optional[float] = Field(default=None, description="Absolute difference between the two amounts")

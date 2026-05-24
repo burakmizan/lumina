@@ -6,6 +6,7 @@
   body {
     background-color: #F8F9FB;
     color: #111827;
+    overflow-x: hidden;
   }
 
   /* Slim scrollbar across the app */

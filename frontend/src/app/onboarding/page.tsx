@@ -189,10 +189,10 @@ export default function OnboardingPage() {
         </div>
       </header>
 
-      <div className="flex-1 flex items-start justify-center pt-12 px-4 pb-16">
+      <div className="flex-1 flex items-start justify-center pt-8 sm:pt-12 px-4 pb-16">
         <div className="w-full max-w-2xl">
           {/* Step indicator */}
-          <div className="flex items-center justify-between mb-10">
+          <div className="flex items-center justify-between mb-8 sm:mb-10">
             {STEPS.map((s, i) => {
               const Icon = s.icon
               const done = i < step
@@ -201,17 +201,17 @@ export default function OnboardingPage() {
                 <div key={i} className="flex items-center flex-1">
                   <div className="flex flex-col items-center">
                     <div className={[
-                      'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all',
+                      'w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center border-2 transition-all',
                       done
                         ? 'bg-emerald-500 border-emerald-500 text-white'
                         : active
                           ? 'bg-white border-emerald-500 text-emerald-600'
                           : 'bg-white border-slate-200 text-slate-400',
                     ].join(' ')}>
-                      {done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
+                      {done ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                     </div>
                     <span className={[
-                      'text-xs mt-1.5 font-medium whitespace-nowrap',
+                      'hidden sm:block text-xs mt-1.5 font-medium text-center max-w-[72px]',
                       active ? 'text-emerald-600' : done ? 'text-slate-600' : 'text-slate-400',
                     ].join(' ')}>
                       {s.label}

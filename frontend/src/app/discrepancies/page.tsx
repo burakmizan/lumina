@@ -75,17 +75,17 @@ export default function DiscrepanciesPage() {
   return (
     <AppShell>
       {/* Page header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white">Discrepancies</h1>
-          <p className="text-sm text-text-secondary mt-0.5">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Discrepancies</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
             AI-detected financial mismatches &amp; Human-in-the-Loop approval workflow
           </p>
         </div>
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-text-secondary hover:text-white border border-surface-border hover:border-surface-tertiary rounded-xl transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
         >
           <RefreshCw className={cn('w-3 h-3', isFetching && 'animate-spin')} />
           Refresh
@@ -114,7 +114,7 @@ export default function DiscrepanciesPage() {
       {/* Filters */}
       <div className="flex gap-6 mb-5 flex-wrap">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-text-muted mb-2 flex items-center gap-1">
+          <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
             <Filter className="w-3 h-3" /> Type
           </p>
           <div className="flex items-center gap-1 flex-wrap">
@@ -126,7 +126,7 @@ export default function DiscrepanciesPage() {
                   'px-3 py-1 rounded-lg text-xs font-medium transition-all',
                   typeFilter === f.value
                     ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                    : 'text-text-secondary hover:text-white border border-transparent',
+                    : 'text-slate-500 hover:text-slate-900 border border-transparent',
                 )}
               >
                 {f.label}
@@ -136,7 +136,7 @@ export default function DiscrepanciesPage() {
         </div>
 
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-text-muted mb-2 flex items-center gap-1">
+          <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1">
             <Filter className="w-3 h-3" /> Status
           </p>
           <div className="flex items-center gap-1 flex-wrap">
@@ -147,8 +147,8 @@ export default function DiscrepanciesPage() {
                 className={cn(
                   'px-3 py-1 rounded-lg text-xs font-medium transition-all',
                   statusFilter === f.value
-                    ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                    : 'text-text-secondary hover:text-white border border-transparent',
+                    ? 'bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 border border-transparent',
                 )}
               >
                 {f.label}
@@ -164,12 +164,12 @@ export default function DiscrepanciesPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-surface-secondary border border-surface-border rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-surface-border flex items-center justify-between">
-          <p className="text-sm font-semibold text-white">
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-900">
             All Discrepancies
             {!isLoading && (
-              <span className="ml-2 text-text-muted font-normal text-xs">
+              <span className="ml-2 text-slate-400 font-normal text-xs">
                 {filtered.length} of {allDiscs.length}
               </span>
             )}
@@ -178,7 +178,7 @@ export default function DiscrepanciesPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-surface-border border-t-accent-green rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-slate-200 border-t-[#29BE98] rounded-full animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
           allDiscs.length === 0 ? (
@@ -193,8 +193,8 @@ export default function DiscrepanciesPage() {
                 <CheckCircle2 className="w-9 h-9 text-[#29BE98]" />
               </div>
             </div>
-            <h3 className="text-white text-xl font-bold mb-2">All clear!</h3>
-            <p className="text-[#94A3B8] text-sm leading-relaxed max-w-xs mb-5">
+            <h3 className="text-slate-900 text-xl font-bold mb-2">All clear!</h3>
+            <p className="text-slate-500 text-sm leading-relaxed max-w-xs mb-5">
               No discrepancies detected. All counterparty ledgers are perfectly reconciled.
             </p>
             <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-[#29BE98]"
@@ -210,14 +210,14 @@ export default function DiscrepanciesPage() {
               style={{ background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.15)' }}>
               <AlertTriangle className="w-6 h-6 text-[#64748B] animate-pulse" style={{ animationDuration: '2s' }} />
             </div>
-            <p className="text-white font-semibold mb-1.5">No matching discrepancies</p>
-            <p className="text-[#94A3B8] text-sm">
+            <p className="text-slate-900 font-semibold mb-1.5">No matching discrepancies</p>
+            <p className="text-slate-500 text-sm">
               Adjust the filters or run the reconciliation agent.
             </p>
           </div>
           )
         ) : (
-          <div className="divide-y divide-surface-border">
+          <div className="divide-y divide-slate-100">
             {filtered.map(disc => {
               const cA = companyMap[disc.company_a_id]
               const cB = companyMap[disc.company_b_id]
@@ -225,42 +225,43 @@ export default function DiscrepanciesPage() {
                 <div
                   key={disc.id}
                   onClick={() => { setSelected(disc); setApproveError(null) }}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-surface-primary/40 transition-colors cursor-pointer group"
+                  className="flex items-center gap-3 px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors cursor-pointer group"
                 >
                   {/* Ref + badges */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-sm font-mono font-semibold text-white">{disc.ledger_ref}</span>
+                      <span className="text-sm font-mono font-semibold text-slate-900">{disc.ledger_ref}</span>
                       <TypeBadge type={disc.discrepancy_type} />
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-text-secondary flex-wrap">
-                      <span className="truncate max-w-[140px]">{cA?.name ?? `…${disc.company_a_id.slice(-6)}`}</span>
-                      <span className="text-text-muted">↔</span>
-                      <span className="truncate max-w-[140px]">{cB?.name ?? `…${disc.company_b_id.slice(-6)}`}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 flex-wrap">
+                      <span className="truncate max-w-[120px] sm:max-w-[140px]">{cA?.name ?? `…${disc.company_a_id.slice(-6)}`}</span>
+                      <span className="text-slate-400">↔</span>
+                      <span className="truncate max-w-[120px] sm:max-w-[140px]">{cB?.name ?? `…${disc.company_b_id.slice(-6)}`}</span>
+                      {disc.difference != null && (
+                        <span className="md:hidden text-red-500 font-medium whitespace-nowrap">· {formatCurrency(disc.difference)}</span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Amounts */}
+                  {/* Amounts — desktop */}
                   <div className="hidden md:block text-right flex-shrink-0 w-36">
                     {disc.difference != null && (
                       <>
-                        <p className="text-sm font-semibold text-red-400">
-                          {formatCurrency(disc.difference)}
-                        </p>
-                        <p className="text-[10px] text-text-muted">difference</p>
+                        <p className="text-sm font-semibold text-red-500">{formatCurrency(disc.difference)}</p>
+                        <p className="text-[10px] text-slate-400">difference</p>
                       </>
                     )}
                   </div>
 
-                  {/* Date */}
+                  {/* Date — desktop */}
                   <div className="hidden lg:block text-right flex-shrink-0 w-28">
-                    <p className="text-xs text-text-secondary">{formatDate(disc.detected_at)}</p>
+                    <p className="text-xs text-slate-500">{formatDate(disc.detected_at)}</p>
                   </div>
 
                   {/* Status + caret */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <StatusBadge status={disc.status} />
-                    <ChevronRight className="w-4 h-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block" />
                   </div>
                 </div>
               )

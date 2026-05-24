@@ -304,7 +304,7 @@ export function DiscrepancyModal({
         </div>
 
         {/* ── Actions ── */}
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
+        <div className="px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="text-xs text-text-muted max-w-xs">
             {isResolved ? (
               <span className="flex items-center gap-1.5 text-accent-green">
@@ -317,7 +317,7 @@ export function DiscrepancyModal({
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end">
             {approveError && (
               <p className="text-red-400 text-xs">{approveError}</p>
             )}
