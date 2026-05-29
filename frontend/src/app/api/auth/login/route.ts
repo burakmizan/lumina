@@ -35,9 +35,9 @@ export async function POST(request: Request) {
     })
 
     response.cookies.set('lumina_token', data.access_token, {
-      httpOnly: true, 
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
     })

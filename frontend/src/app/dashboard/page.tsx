@@ -1,13 +1,18 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, AlertTriangle, Mail, Zap, ChevronRight,
   Play, Loader2, CheckCircle2, Activity, RefreshCw, Clock,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
-import { DiscrepancyModal } from '@/components/dashboard/DiscrepancyModal'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
+
+const DiscrepancyModal = dynamic(
+  () => import('@/components/dashboard/DiscrepancyModal').then(m => ({ default: m.DiscrepancyModal })),
+  { ssr: false }
+)
 import {
   getCompanies, getDiscrepancies, approveDiscrepancy,
   getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns,

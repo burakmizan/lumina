@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Users, Building2, Mail, Hash, RefreshCw, Zap,
@@ -9,7 +10,13 @@ import {
   Activity, UserCheck, UserX, GitBranch, Plus,
   LayoutList, Network, MoreVertical,
 } from 'lucide-react'
-import { CounterpartyMap, type MapCompany } from '@/components/counterparties/CounterpartyMap'
+import type { MapCompany } from '@/components/counterparties/CounterpartyMap'
+
+// d3 + topojson are large — only load when the map view is actually activated
+const CounterpartyMap = dynamic(
+  () => import('@/components/counterparties/CounterpartyMap').then(m => ({ default: m.CounterpartyMap })),
+  { ssr: false }
+)
 import { AppShell } from '@/components/layout/AppShell'
 import { Toast } from '@/components/ui/Toast'
 import {
@@ -836,14 +843,17 @@ export default function CounterpartiesPage() {
     staleTime: 30_000,
   })
 
-  const discrepancyIds = new Set(
-    (allDiscs as { company_b_id: string; status: string }[])
-      .filter(d => d.status !== 'resolved')
-      .map(d => d.company_b_id)
+  const discrepancyIds = useMemo(
+    () => new Set(
+      (allDiscs as { company_b_id: string; status: string }[])
+        .filter(d => d.status !== 'resolved')
+        .map(d => d.company_b_id)
+    ),
+    [allDiscs]
   )
 
-  const ownCompany     = companies.find(c => c.is_own_company) ?? companies[0]
-  const counterparties = companies.filter(c => c.id !== ownCompany?.id)
+  const ownCompany     = useMemo(() => companies.find(c => c.is_own_company) ?? companies[0], [companies])
+  const counterparties = useMemo(() => companies.filter(c => c.id !== ownCompany?.id), [companies, ownCompany?.id])
 
   useEffect(() => {
     setSelected(prev => {
@@ -852,12 +862,12 @@ export default function CounterpartiesPage() {
     })
   }, [counterparties.length])
 
-  const stats = {
+  const stats = useMemo(() => ({
     total:    counterparties.length,
     active:   counterparties.filter(c => c.status === 'active').length,
     inactive: counterparties.filter(c => c.status === 'inactive').length,
     withData: counterparties.filter(c => c.phones.length > 0 || c.emails.length > 0).length,
-  }
+  }), [counterparties])
 
   const allSelected = counterparties.length > 0 && counterparties.every(c => selected.has(c.id))
   const toggleAll   = () => setSelected(allSelected ? new Set() : new Set(counterparties.map(c => c.id)))

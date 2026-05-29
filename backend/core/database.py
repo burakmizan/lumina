@@ -13,6 +13,10 @@ async def connect_to_mongo():
         settings.MONGODB_URI,
         serverSelectionTimeoutMS=20000,
         tlsCAFile=certifi.where(),
+        maxPoolSize=50,
+        minPoolSize=5,
+        maxIdleTimeMS=60_000,
+        waitQueueTimeoutMS=10_000,
     )
     _db = _client[settings.MONGODB_DB_NAME]
     await _client.admin.command("ping")

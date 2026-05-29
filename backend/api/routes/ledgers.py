@@ -23,7 +23,7 @@ async def list_ledgers(
 async def create_ledger(
     payload: LedgerCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_permission("reconciliations.view")),
+    _: dict = Depends(require_permission("reconciliations.run")),
 ):
     return await LedgerService(db).create(payload)
 

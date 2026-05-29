@@ -83,8 +83,18 @@ class UserService:
         doc = await self.users.find_one({"username": username, "is_active": True})
         if not doc:
             return None
-        if not _pwd_ctx.verify(password, doc.get("password_hash", "")):
+            
+        stored_hash = doc.get("password_hash", "")
+        
+        try:
+
+            is_valid = _pwd_ctx.verify(password, stored_hash)
+            if not is_valid:
+                return None
+        except Exception:
+
             return None
+            
         return _serialize_user(dict(doc))
 
     async def get_by_id(self, user_id: str) -> Optional[dict]:

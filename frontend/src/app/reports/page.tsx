@@ -13,7 +13,6 @@ import { AppShell } from '@/components/layout/AppShell'
 import { getAgentRuns, getCompanies } from '@/lib/api'
 import { api } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
-import * as XLSX from 'xlsx'
 
 // ── Heatmap cell color ────────────────────────────────────────────────────────
 function cellColor(count: number, max: number): string {
@@ -340,7 +339,8 @@ export default function ReportsPage() {
 
   // ── Exports ───────────────────────────────────────────────────────────────
 
-  function exportExcel() {
+  async function exportExcel() {
+    const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
 
     const runsSheet = runs.map(r => ({

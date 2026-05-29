@@ -45,7 +45,7 @@ async def get_settings(
 async def create_settings(
     payload: CompanySettingsCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: dict = Depends(get_current_user),
+    _user: dict = Depends(require_permission("settings.edit")),
 ):
     svc = CompanySettingsService(db)
     existing = await svc.get()

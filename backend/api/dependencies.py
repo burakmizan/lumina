@@ -7,11 +7,16 @@ require_permission  — factory that enforces a specific RBAC permission
 verify_erp_api_key  — validates X-API-Key header against stored bcrypt hashes
 """
 
+import asyncio
 from fastapi import Depends, HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from passlib.context import CryptContext
 
 from core.database import get_database
 from core.auth import decode_access_token
+
+# Module-level singleton — avoids re-instantiating bcrypt context on every request
+_erp_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 async def get_db() -> AsyncIOMotorDatabase:
@@ -76,8 +81,6 @@ async def verify_erp_api_key(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> None:
     """Validates X-API-Key header against stored bcrypt hashes in erp_integrations."""
-    from passlib.context import CryptContext
-
     api_key = request.headers.get("X-API-Key", "")
     if not api_key or not api_key.startswith("lmn_"):
         raise HTTPException(
@@ -85,11 +88,18 @@ async def verify_erp_api_key(
             detail="Invalid or missing ERP API key",
         )
 
-    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
     # Narrow the search using the stored key prefix (first 14 chars + ellipsis)
     key_prefix = api_key[:14] + "…"
     doc = await db["erp_integrations"].find_one({"key_prefix": key_prefix})
-    if not doc or not pwd_ctx.verify(api_key, doc.get("key_hash", "")):
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid ERP API key",
+        )
+
+    # bcrypt is CPU-bound (~100ms) — run off the event loop to avoid blocking
+    is_valid = await asyncio.to_thread(_erp_pwd_ctx.verify, api_key, doc.get("key_hash", ""))
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid ERP API key",

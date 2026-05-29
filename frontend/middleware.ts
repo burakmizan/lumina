@@ -6,7 +6,6 @@ const PUBLIC_PREFIXES = [
   '/api/auth',
   '/_next',
   '/favicon.ico',
-  '/uploads',
   '/portal',
 ]
 
@@ -15,6 +14,8 @@ const ONBOARDING_ALLOWED = ['/onboarding', '/api/auth']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  if (pathname === '/') return NextResponse.next()
 
   if (PUBLIC_PREFIXES.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
@@ -64,5 +65,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|lumina.png).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp)$).*)'],
 }

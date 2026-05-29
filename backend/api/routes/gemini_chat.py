@@ -8,7 +8,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from motor.motor_asyncio import AsyncIOMotorDatabase
 import google.generativeai as genai
 
@@ -16,6 +16,11 @@ from api.dependencies import get_db, get_current_user
 from core.config import settings
 
 router = APIRouter()
+
+_ALLOWED_PAGES = frozenset({
+    'dashboard', 'counterparties', 'reconciliations', 'discrepancies',
+    'integrations', 'reports', 'settings', 'onboarding',
+})
 
 SYSTEM_PROMPT = """You are Lumina AI, an expert financial reconciliation assistant embedded in the Lumina B2B platform.
 
@@ -40,6 +45,29 @@ class ChatRequest(BaseModel):
     context: Optional[dict] = None
     history: list[ChatMessage] = []
     page: Optional[str] = None
+
+    @field_validator('message')
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        if len(v) > 4000:
+            raise ValueError('Message exceeds 4000 character limit')
+        return v.strip()
+
+    @field_validator('page')
+    @classmethod
+    def validate_page(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return v if v in _ALLOWED_PAGES else 'unknown'
+
+    @field_validator('context')
+    @classmethod
+    def validate_context(cls, v: Optional[dict]) -> Optional[dict]:
+        if v is None:
+            return v
+        if len(json.dumps(v, default=str)) > 2000:
+            raise ValueError('Context payload exceeds 2000 character limit')
+        return v
 
 
 class ChatResponse(BaseModel):

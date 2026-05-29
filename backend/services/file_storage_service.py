@@ -7,6 +7,7 @@ and tracks metadata in the MongoDB `file_objects` collection.
 Windows-safe: os.makedirs + pathlib throughout; no symlinks.
 """
 import os
+import re
 import logging
 from datetime import datetime
 from typing import Optional, Tuple
@@ -38,7 +39,9 @@ class FileStorageService:
         category_dir = os.path.join(self.upload_dir, source)
         os.makedirs(category_dir, exist_ok=True)
 
-        safe_name = f"{storage_id}_{original_filename}"
+        # Strip path-traversal characters; keep alphanumerics, dots, dashes, underscores
+        sanitized_name = re.sub(r'[^\w.\-]', '_', original_filename)
+        safe_name = f"{storage_id}_{sanitized_name}"
         file_path = os.path.join(category_dir, safe_name)
 
         with open(file_path, "wb") as fh:

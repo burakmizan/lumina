@@ -189,7 +189,7 @@ class CompanyService:
 
                 if not name or not tax_id:
                     skipped += 1
-                    errors.append(f"Skipped: missing company name or tax ID (row: {raw})")
+                    errors.append("Skipped row: missing required fields (company name or tax ID)")
                     continue
 
                 phone_cols = sorted(

@@ -7,13 +7,16 @@ logging.getLogger("services").setLevel(logging.INFO)
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 import os
+import warnings
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import settings
-from core.database import connect_to_mongo, close_mongo_connection
+from core.database import connect_to_mongo, close_mongo_connection, get_database
+from core.indexes import ensure_indexes
 from api.routes import (
     companies, ledgers, discrepancies, reconciliation,
     portal, reconciliations, erp_integration, search, gemini_chat,
@@ -23,9 +26,28 @@ from api.routes import settings as settings_routes
 from api.routes import users_mgmt
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _insecure_defaults = ("change-me-in-production", "")
+    if settings.SECRET_KEY in _insecure_defaults:
+        warnings.warn(
+            "SECRET_KEY is set to an insecure default value! "
+            "Generate a strong random key and set it in your .env file.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     await connect_to_mongo()
+    await ensure_indexes(get_database())
     yield
     await close_mongo_connection()
 
@@ -42,6 +64,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,

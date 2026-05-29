@@ -1,11 +1,19 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import dynamic from 'next/dynamic'
 import './globals.css'
 import { QueryProvider } from '@/components/layout/QueryProvider'
 import { AuthProvider } from '@/lib/auth-context'
 import { AgentIsland } from '@/components/ui/AgentIsland'
-import { AgentExecutionPanel } from '@/components/ui/AgentExecutionPanel'
-import { KeyboardShortcutOverlay } from '@/components/ui/KeyboardShortcutOverlay'
+
+const AgentExecutionPanel = dynamic(
+  () => import('@/components/ui/AgentExecutionPanel').then(m => ({ default: m.AgentExecutionPanel })),
+  { ssr: false }
+)
+const KeyboardShortcutOverlay = dynamic(
+  () => import('@/components/ui/KeyboardShortcutOverlay').then(m => ({ default: m.KeyboardShortcutOverlay })),
+  { ssr: false }
+)
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 

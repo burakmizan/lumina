@@ -159,8 +159,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         if name == "find":
             query  = arguments.get("filter", {})
             limit  = min(int(arguments.get("limit", 500)), 1000)
+            # Exclude password/key hashes from sensitive collections
+            _EXCLUDED_FIELDS = {
+                "users": {"password_hash": 0},
+                "erp_integrations": {"key_hash": 0},
+            }
+            projection = _EXCLUDED_FIELDS.get(col_name)
             docs   = []
-            async for doc in collection.find(query).limit(limit):
+            async for doc in collection.find(query, projection).limit(limit):
                 doc["_id"] = str(doc["_id"])
                 docs.append(_serialize(doc))
             return [TextContent(type="text", text=json.dumps(docs))]

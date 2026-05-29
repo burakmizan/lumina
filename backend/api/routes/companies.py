@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import io
 
 from api.dependencies import get_db, get_current_user, require_permission, verify_erp_api_key
@@ -20,6 +20,14 @@ class BulkDeleteRequest(BaseModel):
 class BulkDeleteResponse(BaseModel):
     deleted: int
     message: str
+
+
+class CompanySyncItem(BaseModel):
+    name: str
+    tax_id: str
+    reconciliation_email: Optional[str] = None
+    contact_name: Optional[str] = None
+    customer_code: Optional[str] = None
 
 
 # ── Templates ─────────────────────────────────────────────────────────────────
@@ -60,12 +68,12 @@ async def bulk_import_counterparties(
 
 @router.post("/sync", status_code=status.HTTP_200_OK)
 async def sync_companies(
-    payload: List[dict],
+    payload: List[CompanySyncItem],
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: None = Depends(verify_erp_api_key),
 ):
     """Syncs Master Data (Counterparties) — consumed by the Local ERP Agent."""
-    mapping = await CompanyService(db).sync_companies(payload)
+    mapping = await CompanyService(db).sync_companies([item.model_dump() for item in payload])
     return {"synced_count": len(mapping), "mapping": mapping}
 
 
