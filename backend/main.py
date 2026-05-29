@@ -26,8 +26,15 @@ from api.routes import settings as settings_routes
 from api.routes import users_mgmt
 
 
+from fastapi.responses import JSONResponse
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # H-5 Güvenlik Yaması: Uploads klasörüne dışarıdan yetkisiz erişimi engelle
+        if request.url.path.startswith("/uploads"):
+            if not request.headers.get("Authorization") and "lumina_session" not in request.cookies:
+                return JSONResponse(status_code=401, content={"detail": "Unauthorized: Authentication required"})
+
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")

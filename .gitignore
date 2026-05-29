@@ -272,3 +272,5 @@ __marimo__/
 gcp-credentials.json
 
 frontend/tsconfig.tsbuildinfo
+
+env.yaml

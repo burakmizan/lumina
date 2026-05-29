@@ -51,6 +51,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(async () => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+
+      if (path === '/' || path.startsWith('/login')) {
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const u = await getCurrentUser()
       setUser(u)
