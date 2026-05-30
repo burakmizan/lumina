@@ -6,8 +6,8 @@ import {
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import {
-  BarChart2, FileSpreadsheet, FileText, CheckCircle2, AlertTriangle,
-  Clock, Zap, ChevronRight, Loader2, RefreshCw, TrendingUp, Activity, Users,
+  BarChart2, FileSpreadsheet, FileText, CheckCircle2, AlertTriangle, XCircle,
+  Clock, Zap, ChevronRight, Loader2, RefreshCw, TrendingUp, Activity, Users,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { getAgentRuns, getCompanies } from '@/lib/api'
@@ -214,6 +214,14 @@ export default function ReportsPage() {
   const { data: companies = [] } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['companies'],
     queryFn: () => getCompanies() as Promise<{ id: string; name: string }[]>,
+  })
+
+  const { data: portalSummary } = useQuery<{
+    total: number; agreed: number; disagreed: number; ai_requested: number; pending: number
+  }>({
+    queryKey: ['portal-summary'],
+    queryFn: () => api.get('/api/v1/portal/sessions/summary').then(r => r.data),
+    staleTime: 30_000,
   })
 
   const { data: allDiscrepancies = [] } = useQuery<{
@@ -590,6 +598,61 @@ export default function ReportsPage() {
             )}
           </div>
         </div>
+
+        {/* ── Portal Responses ── */}
+        {portalSummary && portalSummary.total > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Counterparty Portal Responses</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  How counterparties responded to reconciliation link invitations
+                </p>
+              </div>
+              <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-medium">
+                {portalSummary.total} links sent
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              {([
+                { label: 'Agreed',        value: portalSummary.agreed,       color: '#16a34a', bg: 'rgba(22,163,74,0.07)',    border: 'rgba(22,163,74,0.15)',   icon: <CheckCircle2 className="w-5 h-5" /> },
+                { label: 'Disagreed',     value: portalSummary.disagreed,    color: '#ef4444', bg: 'rgba(239,68,68,0.07)',     border: 'rgba(239,68,68,0.15)',   icon: <XCircle className="w-5 h-5" /> },
+                { label: 'AI Requested',  value: portalSummary.ai_requested, color: '#2597F8', bg: 'rgba(37,151,248,0.07)',    border: 'rgba(37,151,248,0.15)',  icon: <Zap className="w-5 h-5" /> },
+                { label: 'Pending',       value: portalSummary.pending,      color: '#94a3b8', bg: 'rgba(148,163,184,0.07)',   border: 'rgba(148,163,184,0.15)', icon: <Clock className="w-5 h-5" /> },
+              ] as const).map(card => (
+                <div key={card.label} className="rounded-xl p-4 flex items-center gap-3 border"
+                  style={{ background: card.bg, borderColor: card.border }}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold flex-shrink-0"
+                    style={{ color: card.color, background: card.bg }}>
+                    {card.icon}
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold tabular-nums" style={{ color: card.color }}>{card.value}</p>
+                    <p className="text-[10px] text-slate-500 font-medium">{card.label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Response rate bar */}
+            <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+              <span className="text-xs text-slate-500 flex-shrink-0">Response rate</span>
+              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.round(((portalSummary.agreed + portalSummary.disagreed + portalSummary.ai_requested) / Math.max(portalSummary.total, 1)) * 100)}%`,
+                    background: 'linear-gradient(90deg, #29BE98, #2597F8)',
+                  }}
+                />
+              </div>
+              <span className="text-xs font-bold text-slate-700 flex-shrink-0">
+                {Math.round(((portalSummary.agreed + portalSummary.disagreed + portalSummary.ai_requested) / Math.max(portalSummary.total, 1)) * 100)}%
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ── Discrepancy Heatmap ── */}
         <div className="relative">

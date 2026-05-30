@@ -243,12 +243,146 @@ async def _process_portal_upload(
     await session_svc.mark_upload_complete(
         session_id, len(created), filename=filename, storage_id=storage_id
     )
+    if counterparty_id:
+        from datetime import datetime as _dt
+        await db["master_balances"].update_many(
+            {"counterparty_id": counterparty_id},
+            {"$set": {
+                "counterparty_response":    "disagreed_uploaded",
+                "counterparty_response_at": _dt.utcnow(),
+            }},
+        )
     logger.info(f"[Portal/BG] {len(created)} records processed for session {session_id}")
 
     if created:
         run_id = str(uuid.uuid4())
         await ReconciliationEngine(db).run(initiating_company_id, counterparty_id, run_id)
         logger.info(f"[Portal/BG] Reconciliation complete: run_id={run_id}")
+
+@router.post("/sessions/agree")
+async def counterparty_agree(
+    token: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Counterparty confirms they agree with the balance — no discrepancy."""
+    from datetime import datetime
+    session_svc = ReconciliationSessionService(db)
+    session = await session_svc.validate_token(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Token is invalid or has expired.")
+
+    session_id          = str(session.get("_id") or session.get("id", ""))
+    initiating_id       = session.get("initiating_company_id") or session.get("company_id")
+    counterparty_id_val = session.get("counterparty_id")
+
+    await db["reconciliation_sessions"].update_one(
+        {"_id": session.get("_id")},
+        {"$set": {
+            "counterparty_action":   "agreed",
+            "status":                "completed",
+            "completed_at":          datetime.utcnow(),
+        }},
+    )
+
+    if initiating_id and counterparty_id_val:
+        await db["master_balances"].update_many(
+            {
+                "counterparty_id": counterparty_id_val,
+                "reconciliation_status": {"$ne": "matched"},
+            },
+            {"$set": {
+                "reconciliation_status":    "matched",
+                "counterparty_response":    "agreed",
+                "counterparty_response_at": datetime.utcnow(),
+                "updated_at":               datetime.utcnow(),
+            }},
+        )
+
+    logger.info(f"[Portal/Agree] Counterparty agreed — session {session_id} auto-matched.")
+    return {"status": "agreed", "message": "Balance confirmed — accounts are reconciled."}
+
+
+@router.post("/sessions/request-ai")
+async def request_ai_analysis(
+    token: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """Counterparty requests AI reconciliation after uploading their statement."""
+    from datetime import datetime
+    import uuid
+    session_svc = ReconciliationSessionService(db)
+    session = await session_svc.validate_token(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Token is invalid or has expired.")
+
+    initiating_id       = session.get("initiating_company_id") or session.get("company_id")
+    counterparty_id_val = session.get("counterparty_id")
+
+    if not initiating_id or not counterparty_id_val:
+        raise HTTPException(status_code=400, detail="Session missing company IDs.")
+
+    await db["reconciliation_sessions"].update_one(
+        {"_id": session.get("_id")},
+        {"$set": {"counterparty_action": "ai_requested", "auto_reconcile_requested": True}},
+    )
+
+    run_id = str(uuid.uuid4())
+
+    async def _run_bg(a_id: str, b_id: str, r_id: str):
+        from agent.reconciliation_engine import ReconciliationEngine as RE
+        eng = RE(db)
+        await eng.run(a_id, b_id, r_id)
+
+    background_tasks.add_task(_run_bg, initiating_id, counterparty_id_val, run_id)
+    if initiating_id and counterparty_id_val:
+        await db["master_balances"].update_many(
+            {"counterparty_id": counterparty_id_val},
+            {"$set": {
+                "counterparty_response":    "ai_requested",
+                "counterparty_response_at": datetime.utcnow(),
+            }},
+        )
+    logger.info(f"[Portal/AI] AI reconciliation triggered — run_id={run_id}")
+    return {"status": "ai_started", "run_id": run_id, "message": "AI analysis started."}
+
+@router.get("/sessions/summary")
+async def get_portal_sessions_summary(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    """Portal response statistics for the Reports page."""
+    total        = await db["reconciliation_sessions"].count_documents({})
+    agreed       = await db["reconciliation_sessions"].count_documents({"counterparty_action": "agreed"})
+    disagreed    = await db["reconciliation_sessions"].count_documents({"counterparty_action": "disagreed_uploaded"})
+    ai_requested = await db["reconciliation_sessions"].count_documents({"counterparty_action": "ai_requested"})
+    pending      = await db["reconciliation_sessions"].count_documents({
+        "counterparty_action": None,
+        "status": {"$nin": ["expired", "completed"]},
+    })
+    return {
+        "total": total, "agreed": agreed, "disagreed": disagreed,
+        "ai_requested": ai_requested, "pending": pending,
+    }
+
+
+@router.get("/sessions/counterparty-responses")
+async def get_counterparty_responses(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    """Returns latest portal response per counterparty_id → for table columns."""
+    result: dict = {}
+    async for doc in db["reconciliation_sessions"].find(
+        {"counterparty_action": {"$ne": None}},
+        sort=[("updated_at", -1)],
+    ):
+        cid = doc.get("counterparty_id")
+        if cid and cid not in result:
+            result[cid] = doc.get("counterparty_action")
+    return result
+
+
 @router.post("/upload", response_model=PortalUploadResponse)
 async def upload_counterparty_ledger(
     background_tasks: BackgroundTasks,

@@ -23,6 +23,8 @@ import {
   getCompanies,
   getCompanySettings,
   getDiscrepancies,
+  getMasterBalances,
+  getCounterpartyPortalResponses,
   startReconciliationSession,
   updateCompany,
   getCounterpartySessions,
@@ -827,9 +829,10 @@ export default function CounterpartiesPage() {
   }, [])
 
   const { data: companies = [], isLoading, refetch, isFetching } = useQuery<Company[]>({
-    queryKey: ['companies'],
-    queryFn: getCompanies,
-  })
+    queryKey: ['companies'],
+    queryFn: getCompanies,
+    refetchInterval: 15_000,
+  })
 
   const { data: companySettings } = useQuery({
     queryKey: ['company-settings'],
@@ -843,14 +846,17 @@ export default function CounterpartiesPage() {
     staleTime: 30_000,
   })
 
-  const discrepancyIds = useMemo(
-    () => new Set(
-      (allDiscs as { company_b_id: string; status: string }[])
-        .filter(d => d.status !== 'resolved')
-        .map(d => d.company_b_id)
-    ),
-    [allDiscs]
-  )
+  const { data: portalResponses = {} } = useQuery<Record<string, string>>({
+    queryKey: ['counterparty-portal-responses'],
+    queryFn: getCounterpartyPortalResponses,
+    staleTime: 30_000,
+  })
+
+  const discrepancyIds = useMemo(() => new Set(
+    (allDiscs as { company_b_id: string; status: string }[])
+      .filter(d => d.status !== 'resolved')
+      .map(d => d.company_b_id)
+  ), [allDiscs])
 
   const ownCompany     = useMemo(() => companies.find(c => c.is_own_company) ?? companies[0], [companies])
   const counterparties = useMemo(() => companies.filter(c => c.id !== ownCompany?.id), [companies, ownCompany?.id])
@@ -1111,12 +1117,12 @@ export default function CounterpartiesPage() {
         {/* Column headers */}
         <div
           className="hidden md:grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
-          style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 220px' }}
+          style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 110px 220px' }}
         >
           <div className="flex items-center">
             <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4 rounded border-slate-300 bg-white accent-[#29BE98] cursor-pointer" />
           </div>
-          {['Company Name', 'Tax ID', 'Email', 'Code', 'Status', 'Action'].map(h => (
+          {['Company Name', 'Tax ID', 'Email', 'Code', 'Status', 'Response', 'Action'].map(h => (
             <span key={h}>{h}</span>
           ))}
         </div>
@@ -1266,7 +1272,7 @@ export default function CounterpartiesPage() {
                   {/* ── Desktop Row (≥ md) ── */}
                   <div
                     className="hidden md:grid items-center px-5 py-3.5 cursor-pointer select-none"
-                    style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 220px' }}
+                    style={{ gridTemplateColumns: '40px 1fr 130px 180px 80px 100px 110px 220px' }}
                     onContextMenu={e => handleContextMenu(e, company)}
                     onClick={() => handleRowClick(company)}
                   >
@@ -1318,6 +1324,24 @@ export default function CounterpartiesPage() {
                         {isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
+
+                    {/* Portal response */}
+                    {(() => {
+                      const r = portalResponses[company.id]
+                      if (!r) return <span className="text-[10px] text-slate-400">—</span>
+                      const cfg: Record<string, [string, string, string]> = {
+                        agreed:             ['✓ Agreed',    '#16a34a', 'rgba(22,163,74,0.1)'  ],
+                        disagreed_uploaded: ['✗ Disagreed', '#ef4444', 'rgba(239,68,68,0.1)'  ],
+                        ai_requested:       ['⚡ AI Asked',  '#2597F8', 'rgba(37,151,248,0.1)' ],
+                      }
+                      const [label, color, bg] = cfg[r] ?? [r, '#94a3b8', 'rgba(148,163,184,0.1)']
+                      return (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold border whitespace-nowrap"
+                          style={{ color, background: bg, borderColor: color + '40' }}>
+                          {label}
+                        </span>
+                      )
+                    })()}
 
                     {/* Row actions */}
                     <div className="flex items-center justify-end gap-1.5">

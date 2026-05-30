@@ -29,8 +29,9 @@ import {
   deleteStorageFile,
   downloadMasterBalancesTemplate,
   downloadStatementOfAccountTemplate,
-  downloadInternalStatementTemplate,
-  getDiscrepancies,
+  downloadInternalStatementTemplate,
+  getDiscrepancies,
+  getCounterpartySessions,
 } from '@/lib/api'
 import type {
   MasterBalance,
@@ -86,6 +87,23 @@ function DiscrepancyBadge({ type }: { type: string }) {
   return (
     <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border', cls)}>
       {label}
+    </span>
+  )
+}
+
+// ── Portal Response Badge ──────────────────────────────────────────────────────
+function PortalResponseBadge({ response }: { response?: string | null }) {
+  if (!response) return <span className="text-[10px] text-slate-400">—</span>
+  const cfg: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    agreed:             { label: '✓ Agreed',    color: '#16a34a', bg: 'rgba(22,163,74,0.08)',    border: 'rgba(22,163,74,0.2)'    },
+    disagreed_uploaded: { label: '✗ Disagreed', color: '#ef4444', bg: 'rgba(239,68,68,0.08)',     border: 'rgba(239,68,68,0.2)'    },
+    ai_requested:       { label: '⚡ AI Asked',  color: '#2597F8', bg: 'rgba(37,151,248,0.08)',    border: 'rgba(37,151,248,0.2)'   },
+  }
+  const c = cfg[response] ?? { label: response, color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)' }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold border whitespace-nowrap"
+      style={{ color: c.color, background: c.bg, borderColor: c.border }}>
+      {c.label}
     </span>
   )
 }
@@ -896,6 +914,19 @@ function UploadStatementModal({ record, onClose }: { record: MasterBalance; onCl
   )
 }
 
+// ── Live Portal Response ───────────────────────────────────────────────────────
+
+function LivePortalResponse({ counterpartyId }: { counterpartyId: string }) {
+  const { data: sessions = [] } = useQuery<any[]>({
+    queryKey: ['sessions', counterpartyId],
+    queryFn: () => getCounterpartySessions(counterpartyId),
+    refetchInterval: 10000,
+  })
+  const latest = sessions[0]
+  const r = latest?.response || latest?.counterparty_response || (latest?.status === 'agreed' ? 'agreed' : null)
+  return <PortalResponseBadge response={r} />
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ReconciliationsPage() {
@@ -932,10 +963,10 @@ export default function ReconciliationsPage() {
     ?? (companies as { id: string; is_own_company: boolean }[])[0]
 
   const { data: discrepancies = [] } = useQuery<Discrepancy[]>({
-    queryKey: ['discrepancies'],
-    queryFn: () => getDiscrepancies(),
-    staleTime: 30_000,
-  })
+    queryKey: ['discrepancies'],
+    queryFn: () => getDiscrepancies(),
+    refetchInterval: 15_000,
+  })
 
   const discrepancyByCounterparty = (discrepancies as Discrepancy[]).reduce<Record<string, string>>((acc, d) => {
     if (d.status !== 'resolved' && d.company_b_id) {
@@ -1017,7 +1048,7 @@ export default function ReconciliationsPage() {
     return items
   }
 
-  const GRID = '40px 1fr 120px 160px 130px 80px 160px 210px'
+  const GRID = '40px 1fr 120px 160px 130px 80px 160px 110px 210px'
 
   return (
     <AppShell>
@@ -1099,6 +1130,7 @@ export default function ReconciliationsPage() {
             <span className="text-right">Balance</span>
             <span>CCY</span>
             <span>Status</span>
+            <span>Response</span>
             <span className="text-right">Action</span>
           </div>
 
@@ -1247,6 +1279,8 @@ export default function ReconciliationsPage() {
                         ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
                         : <StatusBadge status={record.reconciliation_status} />}
 
+                      <PortalResponseBadge response={(record as MasterBalance & { counterparty_response?: string }).counterparty_response} />
+
                       {/* Row actions */}
                       <div className="flex justify-end gap-1.5">
                         <button onClick={e => { e.stopPropagation(); setDocsRecord(record) }} className="p-1.5 rounded-lg text-slate-500 hover:text-[#2597F8] hover:bg-[#2597F8]/10 transition-colors" title="View statement files">
@@ -1262,7 +1296,7 @@ export default function ReconciliationsPage() {
                               {runningId === record.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
                             </button>
                             <button onClick={e => { e.stopPropagation(); setSendRecord(record) }} title="Send Magic Link" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#29BE98] text-white hover:bg-[#29BE98]/90 transition-colors">
-                              <Mail className="w-3 h-3" />Send Link
+                              <Mail className="w-3 h-3" />Send
                             </button>
                           </>
                         ) : (

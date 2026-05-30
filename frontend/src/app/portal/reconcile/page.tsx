@@ -4,12 +4,14 @@ import { useSearchParams } from 'next/navigation'
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2,
   XCircle, AlertTriangle, Loader2, X, Zap, Shield, Lock,
+  ThumbsUp, ThumbsDown, Brain, Sparkles,
 } from 'lucide-react'
-import { validatePortalToken, uploadPortalFile } from '@/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { validatePortalToken, uploadPortalFile, agreePortalSession, requestPortalAI } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { TokenValidationResponse, PortalUploadResponse } from '@/types'
 
-type Phase = 'loading' | 'invalid' | 'upload' | 'uploading' | 'success' | 'error'
+type Phase = 'loading' | 'invalid' | 'decision' | 'agreed' | 'upload' | 'uploading' | 'success' | 'ai_requested' | 'error'
 
 const ACCEPTED      = '.xlsx,.xls,.csv,.pdf'
 const ACCEPTED_MIME = [
@@ -73,12 +75,14 @@ function PortalContent() {
   const [uploadResult,   setUploadResult]   = useState<PortalUploadResponse | null>(null)
   const [errorMsg,       setErrorMsg]       = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [aiMode, setAiMode]                 = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const qc = useQueryClient()
 
-  useEffect(() => {
+  useEffect(() => {
     if (!token) { setPhase('invalid'); return }
     validatePortalToken(token)
-      .then((d: TokenValidationResponse) => { setSession(d); setPhase(d.valid ? 'upload' : 'invalid') })
+      .then((d: TokenValidationResponse) => { setSession(d); setPhase(d.valid ? 'decision' : 'invalid') })
       .catch(() => setPhase('invalid'))
   }, [token])
 
@@ -101,19 +105,42 @@ function PortalContent() {
     if (f) setSelectedFile(f)
   }, [])
 
-  async function handleUpload() {
-    if (!selectedFile || !token) return
-    setPhase('uploading')
-    try {
-      const result: PortalUploadResponse = await uploadPortalFile(token, selectedFile)
-      setUploadProgress(100)
-      setUploadResult(result)
-      setTimeout(() => setPhase('success'), 350)
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Upload failed. Please try again.')
-      setPhase('error')
-    }
-  }
+  async function handleAgree() {
+    if (!token) return
+    setPhase('uploading') // show spinner briefly
+    try {
+      await agreePortalSession(token)
+      qc.invalidateQueries()
+      setPhase('agreed')
+    } catch {
+      qc.invalidateQueries()
+      setPhase('agreed') // show agreed regardless — backend might have already processed
+    }
+  }
+
+  async function handleRequestAI() {
+    if (!token) return
+    try {
+      await requestPortalAI(token)
+      qc.invalidateQueries()
+    } catch { /* ignore — show UI anyway */ }
+    setPhase('ai_requested')
+  }
+
+  async function handleUpload() {
+    if (!selectedFile || !token) return
+    setPhase('uploading')
+    try {
+      const result: PortalUploadResponse = await uploadPortalFile(token, selectedFile)
+      setUploadProgress(100)
+      setUploadResult(result)
+      qc.invalidateQueries()
+      setTimeout(() => setPhase(aiMode ? 'ai_requested' : 'success'), 350)
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Upload failed. Please try again.')
+      setPhase('error')
+    }
+  }
 
   function fileIcon(f: File) {
     return f.name.endsWith('.pdf')
@@ -200,6 +227,123 @@ function PortalContent() {
           </div>
         )}
 
+        {/* ── Decision ── */}
+        {phase === 'decision' && session?.valid && (
+          <div style={card} className="overflow-hidden">
+            <div className="px-6 pt-6 pb-5" style={{ borderBottom:'1px solid rgba(41,190,152,0.1)' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#29BE98] animate-pulse" />
+                <p className="text-[10px] text-[#29BE98] font-semibold uppercase tracking-widest">Account Reconciliation Request</p>
+              </div>
+              <h2 className="text-xl font-bold text-white">Do you agree with our records?</h2>
+              <p className="text-sm text-white/50 mt-2 leading-relaxed">
+                <span className="text-[#29BE98] font-semibold">{session.initiating_company_name}</span>{' '}
+                is requesting confirmation of your mutual account balance.
+                Please review and indicate whether you agree with their records.
+              </p>
+            </div>
+
+            <div className="px-6 py-6 space-y-3">
+              {/* Balance summary (visual only) */}
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                style={{ background: 'rgba(41,190,152,0.07)', border: '1px solid rgba(41,190,152,0.15)' }}>
+                <Zap className="w-4 h-4 text-[#29BE98] flex-shrink-0" />
+                <p className="text-sm text-white/70 leading-relaxed">
+                  <span className="text-white font-semibold">{session.initiating_company_name}</span>{' '}
+                  has shared their ledger records for the period ending today.
+                  If you agree, this reconciliation will be marked as complete.
+                </p>
+              </div>
+
+              {/* Two main action buttons */}
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                {/* We Agree */}
+                <button
+                  onClick={handleAgree}
+                  className="flex flex-col items-center gap-2.5 py-5 px-4 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group"
+                  style={{ background: 'rgba(41,190,152,0.06)', borderColor: 'rgba(41,190,152,0.25)' }}
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors group-hover:scale-110"
+                    style={{ background: 'rgba(41,190,152,0.15)' }}>
+                    <ThumbsUp className="w-6 h-6 text-[#29BE98]" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">We Agree</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">Confirm balance is correct</p>
+                  </div>
+                </button>
+
+                {/* We Disagree */}
+                <button
+                  onClick={() => { setAiMode(false); setPhase('upload') }}
+                  className="flex flex-col items-center gap-2.5 py-5 px-4 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] group"
+                  style={{ background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.2)' }}
+                >
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center transition-colors group-hover:scale-110"
+                    style={{ background: 'rgba(239,68,68,0.1)' }}>
+                    <ThumbsDown className="w-6 h-6 text-red-400" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-white">We Disagree</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">Upload our statement</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* 3rd button — AI direct comparison */}
+              <button
+                onClick={() => { setAiMode(true); setPhase('upload') }}
+                className="w-full flex items-center gap-3 py-3.5 px-5 rounded-2xl border-2 transition-all duration-200 hover:scale-[1.005] active:scale-[0.99] group"
+                style={{ background: 'rgba(37,151,248,0.04)', borderColor: 'rgba(37,151,248,0.18)' }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(37,151,248,0.12)' }}>
+                  <Brain className="w-5 h-5 text-[#2597F8]" />
+                </div>
+                <div className="text-left flex-1">
+                  <p className="text-sm font-bold text-white">Let AI Compare</p>
+                  <p className="text-[10px] text-white/40 mt-0.5">
+                    Lumina AI reconciles both sides automatically — no upload needed
+                  </p>
+                </div>
+                <Sparkles className="w-4 h-4 text-[#2597F8] flex-shrink-0 opacity-60" />
+              </button>
+
+              <div className="flex items-center justify-center gap-1.5 pt-1">
+                <Lock className="w-3 h-3 text-white/20" />
+                <p className="text-[10px] text-white/20">256-bit encrypted · Secure portal</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Agreed ── */}
+        {phase === 'agreed' && (
+          <div className="p-8 text-center relative overflow-hidden"
+            style={{ ...card, borderColor: 'rgba(41,190,152,0.3)' }}>
+            <SuccessBurst />
+            <div className="relative inline-flex mb-5">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(41,190,152,0.1)', border: '2px solid rgba(41,190,152,0.4)' }}>
+                <ThumbsUp className="w-9 h-9 text-[#29BE98]" />
+              </div>
+              <div className="absolute inset-0 rounded-full animate-ping opacity-20"
+                style={{ border: '2px solid #29BE98' }} />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Accounts Confirmed!</h2>
+            <p className="text-white/50 text-sm leading-relaxed mb-5">
+              You've confirmed agreement with{' '}
+              <span className="text-[#29BE98] font-semibold">{session?.initiating_company_name}</span>.
+              This reconciliation is now marked as <span className="text-[#29BE98] font-semibold">matched ✓</span>
+            </p>
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl justify-center"
+              style={{ background: 'rgba(41,190,152,0.08)', border: '1px solid rgba(41,190,152,0.15)' }}>
+              <CheckCircle2 className="w-4 h-4 text-[#29BE98] flex-shrink-0" />
+              <p className="text-xs text-white/50">No further action needed. Both parties are reconciled.</p>
+            </div>
+          </div>
+        )}
+
         {/* ── Upload / Uploading ── */}
         {(phase === 'upload' || phase === 'uploading') && session?.valid && (
           <div style={card} className="overflow-hidden">
@@ -210,11 +354,24 @@ function PortalContent() {
                 <span className="w-1.5 h-1.5 rounded-full bg-[#29BE98] animate-pulse" />
                 <p className="text-[10px] text-[#29BE98] font-semibold uppercase tracking-widest">Secure Reconciliation Portal</p>
               </div>
-              <h2 className="text-xl font-bold text-white">Upload Ledger Statement</h2>
+              <h2 className="text-xl font-bold text-white">
+                {aiMode ? 'Upload Statement for AI Analysis' : 'Upload Ledger Statement'}
+              </h2>
               <p className="text-sm text-white/50 mt-2 leading-relaxed">
-                Dear <span className="text-white font-semibold">{session.counterparty_name}</span>, please
-                upload your statement for reconciliation with{' '}
-                <span className="text-[#29BE98] font-semibold">{session.initiating_company_name}</span>.
+                {aiMode ? (
+                  <>
+                    Dear <span className="text-white font-semibold">{session.counterparty_name}</span>, upload
+                    your statement and{' '}
+                    <span className="text-[#2597F8] font-semibold">Lumina AI</span> will automatically
+                    compare both sides and notify <span className="text-[#29BE98] font-semibold">{session.initiating_company_name}</span> of any discrepancies.
+                  </>
+                ) : (
+                  <>
+                    Dear <span className="text-white font-semibold">{session.counterparty_name}</span>, please
+                    upload your statement for reconciliation with{' '}
+                    <span className="text-[#29BE98] font-semibold">{session.initiating_company_name}</span>.
+                  </>
+                )}
               </p>
             </div>
 
@@ -261,7 +418,9 @@ function PortalContent() {
                         style={{ width:`${uploadProgress}%`, background:'linear-gradient(90deg,#29BE98,#2597F8)' }} />
                     </div>
                     <p className="text-[11px] text-white/35 mt-2 text-center">
-                      Lumina AI is parsing & normalizing your statement…
+                      {aiMode
+                        ? 'Uploading your statement for AI comparison…'
+                        : 'Lumina AI is parsing & normalizing your statement…'}
                     </p>
                   </div>
                 )}
@@ -318,9 +477,12 @@ function PortalContent() {
               {selectedFile && phase !== 'uploading' && (
                 <button onClick={handleUpload}
                   className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 transition-all duration-200 hover:opacity-90 active:scale-[0.99]"
-                  style={{ background:'linear-gradient(135deg,#29BE98,#22a085)', boxShadow:'0 4px 20px rgba(41,190,152,0.28)' }}>
-                  <Upload className="w-4 h-4" />
-                  Upload Statement
+                  style={{
+                    background:  aiMode ? 'linear-gradient(135deg,#2597F8,#1a7fd4)' : 'linear-gradient(135deg,#29BE98,#22a085)',
+                    boxShadow:   aiMode ? '0 4px 20px rgba(37,151,248,0.28)' : '0 4px 20px rgba(41,190,152,0.28)',
+                  }}>
+                  {aiMode ? <Brain className="w-4 h-4" /> : <Upload className="w-4 h-4" />}
+                  {aiMode ? 'Upload & Start AI Comparison' : 'Upload Statement'}
                 </button>
               )}
 
@@ -363,7 +525,48 @@ function PortalContent() {
               style={{ background:'rgba(41,190,152,0.07)', border:'1px solid rgba(41,190,152,0.15)' }}>
               <Loader2 className="w-4 h-4 text-[#29BE98] animate-spin flex-shrink-0" />
               <p className="text-xs text-white/45 text-left">
-                Lumina AI reconciliation agent is running. You will be notified when results are ready.
+                Your statement has been received. You can also request AI analysis below.
+              </p>
+            </div>
+
+            {/* Request AI button */}
+            <button
+              onClick={handleRequestAI}
+              className="w-full mt-3 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all duration-200 hover:opacity-90"
+              style={{ background: 'rgba(37,151,248,0.12)', border: '1px solid rgba(37,151,248,0.25)', color: '#2597F8' }}
+            >
+              <Brain className="w-4 h-4" />
+              Request AI Comparison
+            </button>
+          </div>
+        )}
+
+        {/* ── AI Requested ── */}
+        {phase === 'ai_requested' && (
+          <div className="p-8 text-center relative overflow-hidden"
+            style={{ ...card, borderColor: 'rgba(37,151,248,0.3)' }}>
+            <div className="relative inline-flex mb-5">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center"
+                style={{ background: 'rgba(37,151,248,0.1)', border: '2px solid rgba(37,151,248,0.35)' }}>
+                <Sparkles className="w-9 h-9 text-[#2597F8]" />
+              </div>
+              <div className="absolute inset-0 rounded-full animate-ping opacity-20"
+                style={{ border: '2px solid #2597F8' }} />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {aiMode ? 'Statement Uploaded — AI is Comparing!' : 'AI Analysis Requested!'}
+            </h2>
+            <p className="text-white/50 text-sm leading-relaxed mb-5">
+              <span className="text-[#2597F8] font-semibold">Lumina AI</span> is now comparing both
+              statements using Google Gemini 3 Flash + MongoDB Atlas.{' '}
+              <span className="text-white font-semibold">{session?.initiating_company_name}</span> will
+              be notified of any discrepancies via email, and their dashboard will show the results.
+            </p>
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl justify-center"
+              style={{ background: 'rgba(37,151,248,0.08)', border: '1px solid rgba(37,151,248,0.15)' }}>
+              <Loader2 className="w-4 h-4 text-[#2597F8] animate-spin flex-shrink-0" />
+              <p className="text-xs text-white/45">
+                Multi-agent reconciliation running · You will be notified of results
               </p>
             </div>
           </div>

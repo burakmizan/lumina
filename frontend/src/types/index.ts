@@ -199,6 +199,8 @@ export interface ReconciliationRunResult {
 
 export type MasterBalanceStatus = 'pending_match' | 'matched' | 'ready_for_external'
 
+export type CounterpartyPortalResponse = 'agreed' | 'disagreed_uploaded' | 'ai_requested' | null
+
 export interface MasterBalance {
   id: string
   company_name: string
@@ -209,6 +211,8 @@ export interface MasterBalance {
   counterparty_id: string | null
   reconciliation_status: MasterBalanceStatus
   auto_created_counterparty: boolean
+  counterparty_response?: CounterpartyPortalResponse
+  counterparty_response_at?: string | null
   created_at: string
   updated_at: string
 }

@@ -110,6 +110,18 @@ export const getCounterpartySessions = (counterpartyId: string) =>
 export const deleteSessionFile = (sessionId: string) =>
   api.delete(`/api/v1/portal/sessions/${sessionId}/file`).then(r => r.data)
 
+export const getPortalSummary = () =>
+  api.get('/api/v1/portal/sessions/summary').then(r => r.data)
+
+export const getCounterpartyPortalResponses = () =>
+  api.get('/api/v1/portal/sessions/counterparty-responses').then(r => r.data)
+
+export const agreePortalSession = (token: string) =>
+  api.post('/api/v1/portal/sessions/agree', null, { params: { token } }).then(r => r.data)
+
+export const requestPortalAI = (token: string) =>
+  api.post('/api/v1/portal/sessions/request-ai', null, { params: { token } }).then(r => r.data)
+
 export const uploadPortalFile = (token: string, file: File) => {
   const form = new FormData()
   form.append('token', token)
