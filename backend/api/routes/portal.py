@@ -275,21 +275,30 @@ async def counterparty_agree(
     initiating_id       = session.get("initiating_company_id") or session.get("company_id")
     counterparty_id_val = session.get("counterparty_id")
 
-    await db["reconciliation_sessions"].update_one(
-        {"_id": session.get("_id")},
+    from bson import ObjectId as _OID
+    _raw = session.get("_id") or session.get("id", "")
+    _oid = _raw if isinstance(_raw, _OID) else _OID(str(_raw))
+    # Fix: session._id might be a string — convert to ObjectId for MongoDB match
+    from bson import ObjectId as _OID
+    _raw_id = session.get("_id") or session.get("id", "")
+    _session_oid = _raw_id if isinstance(_raw_id, _OID) else _OID(str(_raw_id))
+    result = await db["reconciliation_sessions"].update_one(
+        {"_id": _session_oid},
         {"$set": {
             "counterparty_action":   "agreed",
             "status":                "completed",
             "completed_at":          datetime.utcnow(),
+            "updated_at":            datetime.utcnow(),
         }},
     )
+    logger.info(f"[Portal/Agree] Session update matched={result.matched_count} modified={result.modified_count}")
 
     if initiating_id and counterparty_id_val:
+        # Update ALL master_balances for this counterparty — no status filter
+        # (previous filter {"reconciliation_status": {"$ne": "matched"}} was blocking updates
+        #  when the record was already matched, leaving counterparty_response empty)
         await db["master_balances"].update_many(
-            {
-                "counterparty_id": counterparty_id_val,
-                "reconciliation_status": {"$ne": "matched"},
-            },
+            {"counterparty_id": counterparty_id_val},
             {"$set": {
                 "reconciliation_status":    "matched",
                 "counterparty_response":    "agreed",
@@ -322,9 +331,16 @@ async def request_ai_analysis(
     if not initiating_id or not counterparty_id_val:
         raise HTTPException(status_code=400, detail="Session missing company IDs.")
 
+    from bson import ObjectId as _OID2
+    _raw2 = session.get("_id") or session.get("id", "")
+    _oid2 = _raw2 if isinstance(_raw2, _OID2) else _OID2(str(_raw2))
     await db["reconciliation_sessions"].update_one(
-        {"_id": session.get("_id")},
-        {"$set": {"counterparty_action": "ai_requested", "auto_reconcile_requested": True}},
+        {"_id": _oid2},
+        {"$set": {
+            "counterparty_action":      "ai_requested",
+            "auto_reconcile_requested": True,
+            "updated_at":               datetime.utcnow(),
+        }},
     )
 
     run_id = str(uuid.uuid4())
@@ -354,11 +370,11 @@ async def get_portal_sessions_summary(
     """Portal response statistics for the Reports page."""
     total        = await db["reconciliation_sessions"].count_documents({})
     agreed       = await db["reconciliation_sessions"].count_documents({"counterparty_action": "agreed"})
-    disagreed    = await db["reconciliation_sessions"].count_documents({"counterparty_action": "disagreed_uploaded"})
+    disagreed    = await db["reconciliation_sessions"].count_documents({"counterparty_action": {"$in": ["disagreed_uploaded", "disagreed"]}})
     ai_requested = await db["reconciliation_sessions"].count_documents({"counterparty_action": "ai_requested"})
     pending      = await db["reconciliation_sessions"].count_documents({
-        "counterparty_action": None,
-        "status": {"$nin": ["expired", "completed"]},
+        "counterparty_action": {"$in": [None, ""]},
+        "status": {"$nin": ["expired", "completed", "agreed"]},
     })
     return {
         "total": total, "agreed": agreed, "disagreed": disagreed,
@@ -373,13 +389,14 @@ async def get_counterparty_responses(
 ):
     """Returns latest portal response per counterparty_id → for table columns."""
     result: dict = {}
-    async for doc in db["reconciliation_sessions"].find(
+    cursor = db["reconciliation_sessions"].find(
         {"counterparty_action": {"$ne": None}},
-        sort=[("updated_at", -1)],
-    ):
-        cid = doc.get("counterparty_id")
-        if cid and cid not in result:
-            result[cid] = doc.get("counterparty_action")
+    ).sort("updated_at", -1)
+    async for doc in cursor:
+        cid = str(doc.get("counterparty_id") or "")
+        action = doc.get("counterparty_action")
+        if cid and action and cid not in result:
+            result[cid] = action
     return result
 
 

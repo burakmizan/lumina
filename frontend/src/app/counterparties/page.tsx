@@ -8,7 +8,7 @@ import {
   FolderOpen, X, FileSpreadsheet, FileText, Loader2,
   Trash2, Download, Send, Eye, Phone, Upload, FileDown,
   Activity, UserCheck, UserX, GitBranch, Plus,
-  LayoutList, Network, MoreVertical,
+  LayoutList, Network, MoreVertical, Search,
 } from 'lucide-react'
 import type { MapCompany } from '@/components/counterparties/CounterpartyMap'
 
@@ -815,6 +815,11 @@ export default function CounterpartiesPage() {
   const [selected, setSelected]         = useState<Set<string>>(new Set())
   const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
 
+  // Filters
+  const [searchC,          setSearchC]          = useState('')
+  const [filterStatusC,    setFilterStatusC]    = useState('all')
+  const [filterResponseC,  setFilterResponseC]  = useState('all')
+
   const [ctxMenu, setCtxMenu] = useState<{
     visible: boolean; x: number; y: number; company: Company | null
   }>({ visible: false, x: 0, y: 0, company: null })
@@ -860,6 +865,31 @@ export default function CounterpartiesPage() {
 
   const ownCompany     = useMemo(() => companies.find(c => c.is_own_company) ?? companies[0], [companies])
   const counterparties = useMemo(() => companies.filter(c => c.id !== ownCompany?.id), [companies, ownCompany?.id])
+
+  const filteredCounterparties = useMemo(() => {
+    const q = searchC.toLowerCase().trim()
+    return counterparties.filter(c => {
+      if (q) {
+        const hit =
+          c.name.toLowerCase().includes(q) ||
+          (c.tax_id || '').toLowerCase().includes(q) ||
+          (c.reconciliation_email || '').toLowerCase().includes(q) ||
+          (c.customer_code || '').toLowerCase().includes(q) ||
+          (c.contact_name || '').toLowerCase().includes(q)
+        if (!hit) return false
+      }
+      if (filterStatusC !== 'all' && c.status !== filterStatusC) return false
+      if (filterResponseC !== 'all') {
+        const resp = portalResponses[c.id] || null
+        if (filterResponseC === 'none' && resp) return false
+        if (filterResponseC !== 'none' && resp !== filterResponseC) return false
+      }
+      return true
+    })
+  }, [counterparties, searchC, filterStatusC, filterResponseC, portalResponses])
+
+  const isCFiltered = searchC !== '' || filterStatusC !== 'all' || filterResponseC !== 'all'
+  const clearCFilters = () => { setSearchC(''); setFilterStatusC('all'); setFilterResponseC('all') }
 
   useEffect(() => {
     setSelected(prev => {
@@ -1099,6 +1129,52 @@ export default function CounterpartiesPage() {
         </div>
       )}
 
+      {/* ── Filter Bar ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 flex flex-wrap gap-3 items-center mb-6">
+        {/* Search */}
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <input
+            type="text" value={searchC} onChange={e => setSearchC(e.target.value)}
+            placeholder="Search name, tax ID, email, code..."
+            className="w-full pl-9 pr-8 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 focus:bg-white transition-colors placeholder:text-slate-400"
+          />
+          {searchC && <button onClick={() => setSearchC('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"><X className="w-3.5 h-3.5"/></button>}
+        </div>
+
+        {/* Status */}
+        <select value={filterStatusC} onChange={e => setFilterStatusC(e.target.value)}
+          className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 text-slate-700 cursor-pointer">
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+
+        {/* Response */}
+        <select value={filterResponseC} onChange={e => setFilterResponseC(e.target.value)}
+          className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 text-slate-700 cursor-pointer">
+          <option value="all">All Responses</option>
+          <option value="agreed">✓ Agreed</option>
+          <option value="disagreed_uploaded">✗ Disagreed</option>
+          <option value="ai_requested">⚡ AI Asked</option>
+          <option value="none">— No Response</option>
+        </select>
+
+        <div className="flex items-center gap-3 ml-auto flex-shrink-0">
+          {isCFiltered && (
+            <button onClick={clearCFilters}
+              className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors">
+              <X className="w-3 h-3"/>Clear
+            </button>
+          )}
+          <span className="text-xs text-slate-400 font-mono">
+            {filteredCounterparties.length !== counterparties.length
+              ? `${filteredCounterparties.length}/${counterparties.length}`
+              : `${counterparties.length}`} companies
+          </span>
+        </div>
+      </div>
+
       {/* ── Counterparties table ── */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
@@ -1181,9 +1257,15 @@ export default function CounterpartiesPage() {
               {' '}for demo data
             </p>
           </div>
+        ) : filteredCounterparties.length === 0 && isCFiltered ? (
+          <div className="flex flex-col items-center justify-center py-14 gap-3">
+            <Search className="w-8 h-8 text-slate-300" />
+            <p className="text-sm font-medium text-slate-600">No companies match your filters</p>
+            <button onClick={clearCFilters} className="text-xs text-[#29BE98] underline underline-offset-2">Clear all filters</button>
+          </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {counterparties.map(company => {
+            {filteredCounterparties.map(company => {
               const isBusy    = startingId === company.id
               const isActive  = company.status === 'active'
               const isChecked = selected.has(company.id)

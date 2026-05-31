@@ -221,7 +221,8 @@ export default function ReportsPage() {
   }>({
     queryKey: ['portal-summary'],
     queryFn: () => api.get('/api/v1/portal/sessions/summary').then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 15_000,
+    refetchInterval: 20_000,
   })
 
   const { data: allDiscrepancies = [] } = useQuery<{

@@ -147,11 +147,11 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side: Visual Banner */}
-      <div className="hidden lg:flex flex-1 relative bg-[#0C1F30] overflow-hidden items-center justify-center">
+      <div className="hidden lg:flex flex-1 relative bg-white overflow-hidden items-center justify-center">
         <img 
-          src="/login-bg.jpg"
+          src="/login-bg.webp"
           alt="Lumina Background" 
-          className="absolute inset-0 w-full h-full object-cover opacity-70"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         
         <div className="relative z-10 max-w-2xl px-12">

@@ -1,16 +1,17 @@
 'use client'
 import { fireAgentIsland } from '@/components/ui/AgentIsland'
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Upload, X, FileSpreadsheet, CheckCircle2, AlertCircle,
   Loader2, ChevronRight, FileUp, Eye, Mail, ExternalLink,
   Trash2, Download, FolderOpen, FileText, MoreHorizontal,
-  Archive, Users, FileDown, Zap, MoreVertical,
+  Archive, Users, FileDown, Zap, MoreVertical, Search, SlidersHorizontal,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { GeminiContextButton } from '@/components/ui/GeminiContextButton'
 import {
+  api,
   getMasterBalances,
   getCompanies,
   triggerReconciliation,
@@ -31,7 +32,8 @@ import {
   downloadStatementOfAccountTemplate,
   downloadInternalStatementTemplate,
   getDiscrepancies,
-  getCounterpartySessions,
+  getCounterpartySessions,
+  getCounterpartyPortalResponses,
 } from '@/lib/api'
 import type {
   MasterBalance,
@@ -916,15 +918,23 @@ function UploadStatementModal({ record, onClose }: { record: MasterBalance; onCl
 
 // ── Live Portal Response ───────────────────────────────────────────────────────
 
-function LivePortalResponse({ counterpartyId }: { counterpartyId: string }) {
-  const { data: sessions = [] } = useQuery<any[]>({
-    queryKey: ['sessions', counterpartyId],
-    queryFn: () => getCounterpartySessions(counterpartyId),
-    refetchInterval: 10000,
-  })
-  const latest = sessions[0]
-  const r = latest?.response || latest?.counterparty_response || (latest?.status === 'agreed' ? 'agreed' : null)
-  return <PortalResponseBadge response={r} />
+function LivePortalResponse({ counterpartyId, fallback }: { counterpartyId: string; fallback?: string | null }) {
+  const { data: sessions = [] } = useQuery<any[]>({
+    queryKey: ['sessions', counterpartyId],
+    queryFn: () => getCounterpartySessions(counterpartyId),
+    refetchInterval: 10_000,
+    staleTime: 0,
+  })
+  const latest = sessions[0]
+  // Check counterparty_action first (set by agree/disagree/ai endpoints)
+  // then legacy fields, then fallback from master_balance
+  const r = latest?.counterparty_action
+    || latest?.counterparty_response
+    || latest?.response
+    || (latest?.status === 'completed' && latest?.counterparty_action ? latest.counterparty_action : null)
+    || fallback
+    || null
+  return <PortalResponseBadge response={r} />
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -946,6 +956,14 @@ export default function ReconciliationsPage() {
   // Context menu
   const [ctxMenu, setCtxMenu] = useState<{ visible: boolean; x: number; y: number; record: MasterBalance | null }>
     ({ visible: false, x: 0, y: 0, record: null })
+
+  // Filters
+  const [search,         setSearch]         = useState('')
+  const [filterStatus,   setFilterStatus]   = useState('all')
+  const [filterResponse, setFilterResponse] = useState('all')
+  const [filterCCY,      setFilterCCY]      = useState('all')
+  const [balanceMin,     setBalanceMin]      = useState('')
+  const [balanceMax,     setBalanceMax]      = useState('')
 
   const qc = useQueryClient()
 
@@ -975,6 +993,50 @@ export default function ReconciliationsPage() {
     return acc
   }, {})
 
+  // Portal responses from sessions — more reliable than master_balances.counterparty_response
+  const { data: portalResponseMap = {} } = useQuery<Record<string, string>>({
+    queryKey: ['counterparty-portal-responses'],
+    queryFn:  getCounterpartyPortalResponses,
+    staleTime: 0,
+    refetchInterval: 8_000,
+  })
+
+  const uniqueCCY = useMemo(() =>
+    [...new Set(records.map(r => r.currency).filter(Boolean))]
+  , [records])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim()
+    return records.filter(r => {
+      if (q) {
+        const resp = portalResponseMap[r.counterparty_id || ''] || (r as any).counterparty_response || ''
+        const hit =
+          r.company_name.toLowerCase().includes(q) ||
+          (r.customer_code || '').toLowerCase().includes(q) ||
+          (r.tax_id || '').toLowerCase().includes(q) ||
+          r.balance.toString().includes(q) ||
+          (r.currency || '').toLowerCase().includes(q) ||
+          r.reconciliation_status.toLowerCase().includes(q) ||
+          resp.toLowerCase().includes(q)
+        if (!hit) return false
+      }
+      if (filterStatus   !== 'all' && r.reconciliation_status !== filterStatus) return false
+      if (filterCCY      !== 'all' && r.currency !== filterCCY) return false
+      if (filterResponse !== 'all') {
+        const resp = portalResponseMap[r.counterparty_id || ''] || (r as any).counterparty_response || null
+        if (filterResponse === 'none' && resp) return false
+        if (filterResponse !== 'none' && resp !== filterResponse) return false
+      }
+      if (balanceMin !== '' && r.balance < parseFloat(balanceMin)) return false
+      if (balanceMax !== '' && r.balance > parseFloat(balanceMax)) return false
+      return true
+    })
+  }, [records, search, filterStatus, filterResponse, filterCCY, balanceMin, balanceMax, portalResponseMap])
+
+  const isFiltered = search !== '' || filterStatus !== 'all' || filterResponse !== 'all' || filterCCY !== 'all' || balanceMin !== '' || balanceMax !== ''
+
+  const clearFilters = () => { setSearch(''); setFilterStatus('all'); setFilterResponse('all'); setFilterCCY('all'); setBalanceMin(''); setBalanceMax('') }
+
   // Keep selection clean
   useEffect(() => {
     setSelected(prev => {
@@ -983,8 +1045,8 @@ export default function ReconciliationsPage() {
     })
   }, [records.length])
 
-  const allSelected = records.length > 0 && records.every(r => selected.has(r.id))
-  const toggleAll   = () => setSelected(allSelected ? new Set() : new Set(records.map(r => r.id)))
+  const allSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id))
+  const toggleAll   = () => setSelected(allSelected ? new Set() : new Set(filtered.map(r => r.id)))
   const toggleOne   = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   const stats = {
@@ -1048,7 +1110,14 @@ export default function ReconciliationsPage() {
     return items
   }
 
-  const GRID = '40px 1fr 120px 160px 130px 80px 160px 110px 210px'
+  const { data: portalResponses = {} } = useQuery<Record<string, string>>({
+    queryKey: ['counterparty-portal-responses'],
+    queryFn:  async (): Promise<Record<string, string>> => ({}),
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+  })
+
+  const GRID = '40px minmax(130px,1fr) 90px 125px 115px 56px 145px 105px 185px'
 
   return (
     <AppShell>
@@ -1093,7 +1162,68 @@ export default function ReconciliationsPage() {
           </div>
         </div>
 
-        {/* Summary stats */}
+        {/* ── Filter Bar ── */}
+        <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3.5 flex flex-wrap gap-3 items-center">
+          {/* Search */}
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Search name, code, tax ID, balance, CCY..."
+              className="w-full pl-9 pr-8 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 focus:bg-white transition-colors placeholder:text-slate-400"
+            />
+            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"><X className="w-3.5 h-3.5"/></button>}
+          </div>
+
+          {/* Status */}
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+            className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 text-slate-700 cursor-pointer">
+            <option value="all">All Status</option>
+            <option value="matched">Matched</option>
+            <option value="pending_match">Pending Match</option>
+            <option value="ready_for_external">Ready for External</option>
+          </select>
+
+          {/* Response */}
+          <select value={filterResponse} onChange={e => setFilterResponse(e.target.value)}
+            className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 text-slate-700 cursor-pointer">
+            <option value="all">All Responses</option>
+            <option value="agreed">✓ Agreed</option>
+            <option value="disagreed_uploaded">✗ Disagreed</option>
+            <option value="ai_requested">⚡ AI Asked</option>
+            <option value="none">— No Response</option>
+          </select>
+
+          {/* CCY */}
+          <select value={filterCCY} onChange={e => setFilterCCY(e.target.value)}
+            className="px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 text-slate-700 cursor-pointer">
+            <option value="all">All CCY</option>
+            {uniqueCCY.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          {/* Balance range */}
+          <div className="flex items-center gap-1.5">
+            <input type="number" value={balanceMin} onChange={e => setBalanceMin(e.target.value)}
+              placeholder="Min $" className="w-24 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 placeholder:text-slate-400" />
+            <span className="text-slate-300">—</span>
+            <input type="number" value={balanceMax} onChange={e => setBalanceMax(e.target.value)}
+              placeholder="Max $" className="w-24 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#29BE98]/60 placeholder:text-slate-400" />
+          </div>
+
+          <div className="flex items-center gap-3 ml-auto flex-shrink-0">
+            {isFiltered && (
+              <button onClick={clearFilters}
+                className="flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors">
+                <X className="w-3 h-3"/>Clear
+              </button>
+            )}
+            <span className="text-xs text-slate-400 font-mono">
+              {filtered.length !== records.length ? `${filtered.length}/${records.length}` : `${records.length}`} records
+            </span>
+          </div>
+        </div>
+
+        {/* Stat cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             { label: 'Total',              value: stats.total,              color: 'text-slate-900',   bg: 'bg-white',            border: 'border-slate-200' },
@@ -1109,10 +1239,10 @@ export default function ReconciliationsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
           {/* Column headers — desktop only */}
           <div
-            className="hidden md:grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
+            className="hidden md:grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50 min-w-[1060px]"
             style={{ gridTemplateColumns: GRID }}
           >
             {/* Master checkbox */}
@@ -1144,9 +1274,15 @@ export default function ReconciliationsPage() {
               <p className="text-sm">No master balances imported yet.</p>
               <button onClick={() => setShowImport(true)} className="text-xs text-[#29BE98] underline underline-offset-2">Import your first file</button>
             </div>
+          ) : filtered.length === 0 && isFiltered ? (
+            <div className="flex flex-col items-center justify-center py-14 gap-3">
+              <Search className="w-8 h-8 text-slate-300" />
+              <p className="text-sm font-medium text-slate-600">No records match your filters</p>
+              <button onClick={clearFilters} className="text-xs text-[#29BE98] underline underline-offset-2">Clear all filters</button>
+            </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {records.map(record => {
+              {filtered.map(record => {
                 const isChecked = selected.has(record.id)
 
                 return (
@@ -1242,7 +1378,7 @@ export default function ReconciliationsPage() {
 
                     {/* ── Desktop Row (≥ md) ── */}
                     <div
-                      className="hidden md:grid items-center px-5 py-3.5 transition-colors cursor-default select-none"
+                      className="hidden md:grid items-center px-5 py-3.5 transition-colors cursor-default select-none min-w-[1060px]"
                       style={{ gridTemplateColumns: GRID }}
                       onContextMenu={e => handleContextMenu(e, record)}
                     >
@@ -1279,7 +1415,13 @@ export default function ReconciliationsPage() {
                         ? <DiscrepancyBadge type={discrepancyByCounterparty[record.counterparty_id]} />
                         : <StatusBadge status={record.reconciliation_status} />}
 
-                      <PortalResponseBadge response={(record as MasterBalance & { counterparty_response?: string }).counterparty_response} />
+                      <PortalResponseBadge
+                        response={
+                          (record.counterparty_id ? portalResponseMap[record.counterparty_id] : undefined)
+                          || (record as MasterBalance & { counterparty_response?: string }).counterparty_response
+                          || undefined
+                        }
+                      />
 
                       {/* Row actions */}
                       <div className="flex justify-end gap-1.5">
