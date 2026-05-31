@@ -129,11 +129,12 @@ export interface ReconciliationSession {
 
 export interface TokenValidationResponse {
   valid: boolean
-  session_id?: string | null
-  initiating_company_name?: string | null
-  counterparty_name?: string | null
-  expires_at?: string | null
-  message?: string | null
+  already_used?: boolean
+  session_id?: string
+  initiating_company_name?: string
+  counterparty_name?: string
+  expires_at?: string
+  message?: string
 }
 
 export interface PortalUploadResponse {
@@ -238,6 +239,7 @@ export interface StatementEntry {
 export interface SendMagicLinkResult {
   session_id: string
   token_preview: string
+  portal_url: string
   counterparty_name: string
   counterparty_email: string
   email_sent: boolean

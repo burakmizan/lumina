@@ -349,9 +349,11 @@ async def send_magic_link_from_reconciliation(
         session["id"], counterparty["name"], email,
     )
 
+    portal_url = f"{settings.FRONTEND_BASE_URL}/portal/reconcile?token={session['token']}"
     return SendMagicLinkResponse(
         session_id=session["id"],
         token_preview=session["token"][-8:],
+        portal_url=portal_url,
         counterparty_name=counterparty["name"],
         counterparty_email=email,
         email_sent=email_sent,

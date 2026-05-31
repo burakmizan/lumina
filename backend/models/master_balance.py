@@ -50,6 +50,7 @@ class SendMagicLinkResponse(BaseModel):
     """Result returned after dispatching a reconciliation invitation."""
     session_id: str
     token_preview: str
+    portal_url: str = ""
     counterparty_name: str
     counterparty_email: str
     email_sent: bool

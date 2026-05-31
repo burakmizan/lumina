@@ -39,6 +39,7 @@ import {
   downloadCounterpartiesTemplate,
 } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
+import { fireMagicLinkIsland } from '@/components/ui/MagicLinkIsland'
 import type { Company, ReconciliationSession, FileRecord, BulkImportResult } from '@/types'
 
 type ToastState = { message: string; variant: 'success' | 'error' } | null
@@ -918,7 +919,12 @@ export default function CounterpartiesPage() {
       startReconciliationSession(initiating, counterparty),
     onSuccess: (session, vars) => {
       const cp = companies.find(c => c.id === vars.counterparty)
-      setToast({ variant: 'success', message: `Invite sent to ${cp?.name ?? 'counterparty'}. Token: …${session.token.slice(-8)}` })
+      const portalUrl = `${window.location.origin}/portal/reconcile?token=${session.token}`
+      fireMagicLinkIsland({
+        type:         'single',
+        company_name: cp?.name ?? 'Counterparty',
+        portal_url:   portalUrl,
+      })
       setStartingId(null)
     },
     onError: (err: Error) => {
@@ -958,16 +964,25 @@ export default function CounterpartiesPage() {
   async function handleBulkSend() {
     if (!ownCompany) { setToast({ variant: 'error', message: 'Your company is not configured yet.' }); return }
     setIsBulkSending(true)
-    let sent = 0
+    const items: { company_name: string; portal_url: string; email?: string }[] = []
     for (const id of Array.from(selected)) {
       try {
-        await startReconciliationSession(ownCompany.id, id)
-        sent++
+        const session = await startReconciliationSession(ownCompany.id, id)
+        const cp = companies.find(c => c.id === id)
+        items.push({
+          company_name: cp?.name ?? `ID …${id.slice(-6)}`,
+          portal_url:   `${window.location.origin}/portal/reconcile?token=${session.token}`,
+          email:        cp?.reconciliation_email,
+        })
       } catch { /* skip failed */ }
     }
     setIsBulkSending(false)
     setSelected(new Set())
-    setToast({ variant: 'success', message: `${sent} invitation${sent !== 1 ? 's' : ''} sent.` })
+    if (items.length === 1) {
+      fireMagicLinkIsland({ type: 'single', company_name: items[0].company_name, portal_url: items[0].portal_url })
+    } else if (items.length > 1) {
+      fireMagicLinkIsland({ type: 'bulk', items })
+    }
   }
 
   function handleContextMenu(e: React.MouseEvent, company: Company) {
@@ -1114,8 +1129,19 @@ export default function CounterpartiesPage() {
       {/* ── Own company card ── */}
       {companySettings && (
         <div className="mb-4 p-4 bg-white border border-[#29BE98]/20 rounded-2xl flex items-center gap-4">
-          <div className="w-9 h-9 rounded-xl bg-[#29BE98]/10 border border-[#29BE98]/20 flex items-center justify-center flex-shrink-0">
-            <Zap className="w-4.5 h-4.5 text-[#29BE98]" />
+          <div className="flex-shrink-0">
+            {(companySettings.profile as { logo_url?: string })?.logo_url ? (
+              <img
+                src={(companySettings.profile as { logo_url?: string }).logo_url}
+                alt={companySettings.identity?.company_name}
+                className="w-10 h-10 rounded-full object-cover border-2 border-[#29BE98]/20 shadow-sm"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base border-2 border-white shadow-sm"
+                style={{ background: 'linear-gradient(135deg, #29BE98, #2597F8)' }}>
+                {(companySettings.identity?.company_name || 'L').charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-widest text-[#29BE98] mb-0.5">Your Company</p>

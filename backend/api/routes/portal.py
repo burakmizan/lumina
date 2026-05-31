@@ -64,13 +64,36 @@ async def start_reconciliation_session(
 
 @router.get("/sessions/validate/{token}", response_model=TokenValidationResponse)
 async def validate_portal_token(token: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    # Check directly in DB first — faster and avoids service layer masking
+    raw = await db["reconciliation_sessions"].find_one({"token": token})
+
+    if not raw:
+        return TokenValidationResponse(valid=False, message="Token is invalid or has expired.")
+
+    # Already used (single-use enforcement)
+    if raw.get("counterparty_action"):
+        action = raw.get("counterparty_action", "")
+        label = {
+            "agreed":             "confirmed agreement",
+            "disagreed_uploaded": "uploaded a statement",
+            "ai_requested":       "requested AI comparison",
+        }.get(action, "already responded")
+        return TokenValidationResponse(
+            valid=False,
+            already_used=True,
+            message=f"This portal link has already been used — counterparty {label}. Each invitation can only be used once.",
+        )
+
+    # Expired check
+    from datetime import datetime as _dt
+    if raw.get("status") == "expired" or raw.get("expires_at", _dt.utcnow()) < _dt.utcnow():
+        return TokenValidationResponse(valid=False, message="This link has expired. Please request a new invitation.")
+
     session_svc = ReconciliationSessionService(db)
     session = await session_svc.validate_token(token)
 
     if not session:
-        return TokenValidationResponse(
-            valid=False, message="Token is invalid or has expired."
-        )
+        return TokenValidationResponse(valid=False, message="Token is invalid or has expired.")
 
     init_name, cp_name = await session_svc.get_company_names(
         session["initiating_company_id"], session["counterparty_id"]
@@ -258,6 +281,80 @@ async def _process_portal_upload(
         run_id = str(uuid.uuid4())
         await ReconciliationEngine(db).run(initiating_company_id, counterparty_id, run_id)
         logger.info(f"[Portal/BG] Reconciliation complete: run_id={run_id}")
+
+@router.get("/statements/{token}")
+async def get_portal_statement_entries(token: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Public token-secured endpoint.
+    Returns the initiating company's ledger entries so the counterparty
+    can review them before deciding to agree or disagree.
+    """
+    from datetime import datetime as _dt
+    from bson import ObjectId
+
+    raw = await db["reconciliation_sessions"].find_one({"token": token})
+    if not raw:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    if raw.get("status") == "expired" or raw.get("expires_at", _dt.utcnow()) < _dt.utcnow():
+        raise HTTPException(status_code=410, detail="Session has expired.")
+
+    initiating_id   = raw.get("initiating_company_id")
+    counterparty_id = raw.get("counterparty_id")
+
+    if not initiating_id or not counterparty_id:
+        raise HTTPException(status_code=400, detail="Session missing company IDs.")
+
+    # Get master balance row (for total balance / currency)
+    master_balance = await db["master_balances"].find_one(
+        {"counterparty_id": counterparty_id}
+    )
+
+    # Get internal statement ledger entries uploaded by initiating company
+    entries = []
+    async for doc in db["ledgers"].find(
+        {
+            "counterparty_id": counterparty_id,
+            "source": {"$in": ["internal_statement", "json", "excel", "csv", "sap", "logo", "mikro"]},
+        },
+        sort=[("transaction_date", -1)],
+    ).limit(100):
+        entries.append({
+            "transaction_ref":  doc.get("transaction_ref", ""),
+            "description":      doc.get("description", "") or doc.get("account_name", ""),
+            "amount":           float(doc.get("amount") or 0),
+            "currency":         str(doc.get("currency") or "USD"),
+            "transaction_type": doc.get("transaction_type", "invoice"),
+            "transaction_date": str(doc.get("transaction_date", ""))[:10]
+                                if doc.get("transaction_date") else None,
+        })
+
+    # Calculate total from entry amounts — master_balance.balance can be stale (set to 0
+    # when SOA is re-imported before entries are uploaded). Sum from live ledger entries instead.
+    calculated_total: float = sum(float(e["amount"]) for e in entries)
+
+    # If entries are empty fall back to master_balance field
+    if calculated_total == 0.0 and master_balance:
+        calculated_total = float(master_balance.get("balance") or 0.0)
+
+    # Determine display currency (entry currency → master_balance → USD)
+    currency: str = "USD"
+    if entries:
+        currency = entries[0].get("currency") or "USD"
+    elif master_balance:
+        currency = master_balance.get("currency") or "USD"
+
+    # Sort: non-zero amount entries first so portal shows meaningful rows at top
+    non_zero_entries = [e for e in entries if float(e["amount"]) != 0]
+    zero_entries     = [e for e in entries if float(e["amount"]) == 0]
+    sorted_entries   = non_zero_entries + zero_entries
+
+    return {
+        "total_balance": calculated_total,
+        "currency":      currency,
+        "entry_count":   len(entries),
+        "entries":       sorted_entries,
+    }
 
 @router.post("/sessions/agree")
 async def counterparty_agree(

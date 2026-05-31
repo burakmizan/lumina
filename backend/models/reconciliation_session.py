@@ -26,6 +26,7 @@ class ReconciliationSessionResponse(BaseModel):
 
 class TokenValidationResponse(BaseModel):
     valid: bool
+    already_used: bool = False  # True when token was valid but already responded
     session_id: Optional[str] = None
     initiating_company_name: Optional[str] = None
     counterparty_name: Optional[str] = None

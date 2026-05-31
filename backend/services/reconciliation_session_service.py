@@ -7,7 +7,7 @@ from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
-TOKEN_EXPIRY_HOURS = 72
+TOKEN_EXPIRY_HOURS = 168  # 7 days — single-use portal links
 
 
 class ReconciliationSessionService:
@@ -30,7 +30,7 @@ class ReconciliationSessionService:
         }
         result = await self.collection.insert_one(doc)
         doc["id"] = str(result.inserted_id)
-        logger.info(f"[Session] Created for counterparty {counterparty_id}, expires in {TOKEN_EXPIRY_HOURS}h")
+        logger.info(f"[Session] Created for counterparty {counterparty_id}, expires in 7 days (single-use)")
         return doc
 
     async def validate_token(self, token: str) -> Optional[dict]:
@@ -41,6 +41,8 @@ class ReconciliationSessionService:
         if doc.get("status") == "expired" or doc["expires_at"] < now:
             await self.collection.update_one({"token": token}, {"$set": {"status": "expired"}})
             return None
+        # Single-use: if counterparty already responded, preserve doc for already_used message
+        # but mark with a special key so the route can distinguish
         doc["id"] = str(doc.pop("_id"))
         return doc
 

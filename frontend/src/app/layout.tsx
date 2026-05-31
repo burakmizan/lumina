@@ -5,6 +5,7 @@ import './globals.css'
 import { QueryProvider } from '@/components/layout/QueryProvider'
 import { AuthProvider } from '@/lib/auth-context'
 import { AgentIsland } from '@/components/ui/AgentIsland'
+import { MagicLinkIsland } from '@/components/ui/MagicLinkIsland'
 
 const AgentExecutionPanel = dynamic(
   () => import('@/components/ui/AgentExecutionPanel').then(m => ({ default: m.AgentExecutionPanel })),
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AgentIsland />
             <AgentExecutionPanel />
             <KeyboardShortcutOverlay />
+            <MagicLinkIsland />
           </AuthProvider>
         </QueryProvider>
       </body>

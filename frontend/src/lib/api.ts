@@ -104,6 +104,9 @@ export const startReconciliationSession = (
 export const validatePortalToken = (token: string) =>
   api.get(`/api/v1/portal/sessions/validate/${token}`).then(r => r.data)
 
+export const getPortalStatements = (token: string) =>
+  api.get(`/api/v1/portal/statements/${token}`).then(r => r.data)
+
 export const getCounterpartySessions = (counterpartyId: string) =>
   api.get(`/api/v1/portal/sessions/counterparty/${counterpartyId}`).then(r => r.data)
 

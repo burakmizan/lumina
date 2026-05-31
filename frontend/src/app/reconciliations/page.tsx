@@ -1,5 +1,6 @@
 'use client'
 import { fireAgentIsland } from '@/components/ui/AgentIsland'
+import { fireMagicLinkIsland } from '@/components/ui/MagicLinkIsland'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -462,6 +463,13 @@ function SendMagicLinkModal({ record, onClose }: { record: MasterBalance; onClos
     onSuccess: (data: SendMagicLinkResult) => {
       setResult(data)
       qc.invalidateQueries({ queryKey: ['sessions', record.counterparty_id] })
+      if (data.portal_url) {
+        fireMagicLinkIsland({
+          type:         'single',
+          company_name: data.counterparty_name,
+          portal_url:   data.portal_url,
+        })
+      }
     },
   })
   const errMsg = extractError(mutation.error)

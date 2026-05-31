@@ -3,15 +3,15 @@ import { useState, useCallback, useRef, DragEvent, ChangeEvent, useEffect, Suspe
 import { useSearchParams } from 'next/navigation'
 import {
   Upload, FileSpreadsheet, FileText, CheckCircle2,
-  XCircle, AlertTriangle, Loader2, X, Zap, Shield, Lock,
+  XCircle, AlertTriangle, Loader2, X, Zap, Shield, Lock, Timer,
   ThumbsUp, ThumbsDown, Brain, Sparkles,
 } from 'lucide-react'
-import { useQueryClient } from '@tanstack/react-query'
-import { validatePortalToken, uploadPortalFile, agreePortalSession, requestPortalAI } from '@/lib/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { validatePortalToken, uploadPortalFile, agreePortalSession, requestPortalAI, getPortalStatements } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import type { TokenValidationResponse, PortalUploadResponse } from '@/types'
 
-type Phase = 'loading' | 'invalid' | 'decision' | 'agreed' | 'upload' | 'uploading' | 'success' | 'ai_requested' | 'error'
+type Phase = 'loading' | 'invalid' | 'already_used' | 'decision' | 'agreed' | 'upload' | 'uploading' | 'success' | 'ai_requested' | 'error'
 
 const ACCEPTED      = '.xlsx,.xls,.csv,.pdf'
 const ACCEPTED_MIME = [
@@ -73,15 +73,46 @@ function PortalContent() {
   const [isDragging,     setIsDragging]     = useState(false)
   const [uploadResult,   setUploadResult]   = useState<PortalUploadResponse | null>(null)
   const [errorMsg,       setErrorMsg]       = useState('')
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [aiMode, setAiMode]                 = useState(false)
+  const [uploadProgress, setUploadProgress]   = useState(0)
+  const [aiMode, setAiMode]                   = useState(false)
+  const [showSecurityInfo, setShowSecurityInfo] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
+
+  const { data: stmtData } = useQuery<{
+    total_balance:  number | null
+    currency:       string
+    entry_count:    number
+    entries: {
+      transaction_ref:  string
+      description:      string
+      amount:           number
+      currency:         string
+      transaction_type: string
+      transaction_date: string | null
+    }[]
+  }>({
+    queryKey:  ['portal-statements', token],
+    queryFn:   () => getPortalStatements(token),
+    enabled:   !!token && phase === 'decision',
+    staleTime: 60_000,
+    retry:     false,
+  })
 
   useEffect(() => {
     if (!token) { setPhase('invalid'); return }
     validatePortalToken(token)
-      .then((d: TokenValidationResponse) => { setSession(d); setPhase(d.valid ? 'decision' : 'invalid') })
+      .then((d: TokenValidationResponse) => {
+        setSession(d)
+        if (d.valid) {
+          setPhase('decision')
+          setShowSecurityInfo(true) // show security popup on first valid open
+        } else if (d.already_used) {
+          setPhase('already_used')
+        } else {
+          setPhase('invalid')
+        }
+      })
       .catch(() => setPhase('invalid'))
   }, [token])
 
@@ -175,6 +206,52 @@ function PortalContent() {
 
       <div className="w-full max-w-[460px] relative z-10">
 
+        {/* ── Security info popup (shown once on first valid open) ── */}
+        {showSecurityInfo && phase === 'decision' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/20 backdrop-blur-sm"
+            onClick={() => setShowSecurityInfo(false)}>
+            <div className="w-full max-w-[360px] rounded-2xl p-5 animate-in zoom-in-95 duration-200"
+              style={{ background: '#fff', border: '1px solid rgba(41,190,152,0.12)', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}
+              onClick={e => e.stopPropagation()}>
+              
+              <div className="flex items-center gap-2.5 mb-5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(41,190,152,0.06)', border: '1px solid rgba(41,190,152,0.15)' }}>
+                  <Shield className="w-4 h-4 text-[#29BE98]" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Secure One-Time Link</h3>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider">Portal Security</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-5">
+                {[
+                  { Icon: Lock, text: 'This link is encrypted and single-use only' },
+                  { Icon: Timer, text: session?.expires_at ? `Expires ${new Date(session.expires_at).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}` : 'Valid for 7 days from when it was sent' },
+                  { Icon: XCircle, text: 'Once you respond, this link will be permanently deactivated' },
+                  { Icon: Shield, text: '256-bit encrypted · Your data is never stored beyond this session' },
+                ].map(({ Icon, text }) => (
+                  <div key={text} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
+                      style={{ background: 'rgba(41,190,152,0.05)' }}>
+                      <Icon className="w-3.5 h-3.5 text-[#29BE98]" />
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{text}</p>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setShowSecurityInfo(false)}
+                className="w-full py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.99]"
+                style={{ background: 'linear-gradient(135deg, #29BE98, #22a085)', boxShadow: '0 2px 8px rgba(41,190,152,0.2)' }}>
+                I Understand — Proceed
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Top branding ── */}
         <div className="flex flex-col items-center mb-7">
           <img src="/lumina.png" alt="Lumina"
@@ -202,6 +279,26 @@ function PortalContent() {
             <div className="w-12 h-12 rounded-full border-2 animate-spin"
               style={{ borderColor:'rgba(41,190,152,0.15)', borderTopColor:'#29BE98' }} />
             <p className="text-slate-500 text-sm">Validating secure token…</p>
+          </div>
+        )}
+
+        {/* ── Already Used ── */}
+        {phase === 'already_used' && (
+          <div className="p-8 text-center relative overflow-hidden"
+            style={{ ...card, borderColor: 'rgba(37,151,248,0.2)' }}>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+              style={{ background: 'rgba(37,151,248,0.07)', border: '1px solid rgba(37,151,248,0.2)' }}>
+              <Shield className="w-8 h-8 text-[#2597F8]" />
+            </div>
+            <h2 className="text-slate-900 font-bold text-lg mb-2">Already Responded</h2>
+            <p className="text-slate-500 text-sm leading-relaxed mb-4">
+              {session?.message || 'This portal link has already been used. Each invitation is single-use for security.'}
+            </p>
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl justify-center"
+              style={{ background: 'rgba(37,151,248,0.05)', border: '1px solid rgba(37,151,248,0.15)' }}>
+              <Lock className="w-3.5 h-3.5 text-[#2597F8]" />
+              <p className="text-xs text-slate-500">Contact the sender if you need a new invitation link.</p>
+            </div>
           </div>
         )}
 
@@ -236,16 +333,74 @@ function PortalContent() {
             </div>
 
             <div className="px-6 py-6 space-y-3">
-              {/* Balance summary (visual only) */}
+              {/* Balance summary */}
               <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                style={{ background: 'rgba(41,190,152,0.03)', border: '1px solid rgba(41,190,152,0.12)' }}>
+                style={{ background: 'rgba(41,190,152,0.07)', border: '1px solid rgba(41,190,152,0.15)' }}>
                 <Zap className="w-4 h-4 text-[#29BE98] flex-shrink-0" />
                 <p className="text-sm text-slate-600 leading-relaxed">
                   <span className="text-slate-900 font-semibold">{session.initiating_company_name}</span>{' '}
-                  has shared their ledger records for the period ending today.
-                  If you agree, this reconciliation will be marked as complete.
+                  has shared their ledger records below. Review each entry and
+                  indicate whether you agree with the figures shown.
                 </p>
               </div>
+
+              {/* Statement Entries table */}
+              {stmtData && stmtData.entry_count > 0 ? (
+                <div className="rounded-xl overflow-hidden"
+                  style={{ border: '1px solid rgba(41,190,152,0.15)' }}>
+                  {/* Table header with total */}
+                  <div className="flex items-center justify-between px-4 py-2.5"
+                    style={{ background: 'rgba(41,190,152,0.06)', borderBottom: '1px solid rgba(41,190,152,0.12)' }}>
+                    <p className="text-[10px] font-bold text-[#1a9e7e] uppercase tracking-widest">
+                      Statement Entries ({stmtData.entry_count})
+                    </p>
+                    {stmtData.total_balance != null && (
+                      <p className="text-xs font-bold text-slate-700">
+                        Total:{' '}
+                        <span className="text-[#1a9e7e]">
+                          {stmtData.total_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {stmtData.currency}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  {/* Column headers */}
+                  <div className="grid px-4 py-2 text-[9px] font-semibold uppercase tracking-wider text-slate-400"
+                    style={{ gridTemplateColumns: '1fr 90px 70px', borderBottom: '1px solid rgba(41,190,152,0.08)' }}>
+                    <span>Ref / Description</span>
+                    <span className="text-right">Amount</span>
+                    <span className="text-right">Date</span>
+                  </div>
+                  {/* Rows */}
+                  <div className="max-h-[220px] overflow-y-auto divide-y divide-slate-100">
+                    {stmtData.entries.map((e, i) => (
+                      <div key={i} className="grid items-center px-4 py-2.5 hover:bg-slate-50 transition-colors"
+                        style={{ gridTemplateColumns: '1fr 90px 70px' }}>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-mono text-[#1a9e7e] truncate">{e.transaction_ref}</p>
+                          {e.description && (
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{e.description}</p>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-semibold text-slate-700 text-right tabular-nums">
+                          {e.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span className="text-slate-400 text-[9px] ml-1">{e.currency}</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400 text-right">
+                          {e.transaction_date ? e.transaction_date.slice(0, 7) : '—'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : stmtData && stmtData.entry_count === 0 ? (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                  style={{ background: 'rgba(148,163,184,0.06)', border: '1px solid rgba(148,163,184,0.12)' }}>
+                  <AlertTriangle className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  <p className="text-xs text-slate-500">
+                    No statement entries uploaded yet. Please check with {session.initiating_company_name} for details.
+                  </p>
+                </div>
+              ) : null}
 
               {/* Two main action buttons */}
               <div className="grid grid-cols-2 gap-3 pt-2">
@@ -260,7 +415,7 @@ function PortalContent() {
                     <ThumbsUp className="w-6 h-6 text-[#29BE98]" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-slate-900">We Agree</p>
+                    <p className="text-sm font-bold text-slate-900">Confirmed</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">Confirm balance is correct</p>
                   </div>
                 </button>
@@ -276,7 +431,7 @@ function PortalContent() {
                     <ThumbsDown className="w-6 h-6 text-red-400" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold text-slate-900">We Disagree</p>
+                    <p className="text-sm font-bold text-slate-900">Disputed</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">Upload our statement</p>
                   </div>
                 </button>
@@ -551,7 +706,7 @@ function PortalContent() {
             <p className="text-slate-500 text-sm leading-relaxed mb-5">
               <span className="text-[#2597F8] font-semibold">Lumina AI</span> is now comparing both
               statements using Google Gemini 3 Flash + MongoDB Atlas.{' '}
-              <span className="text-white font-semibold">{session?.initiating_company_name}</span> will
+              <span className="text-slate-900 font-semibold">{session?.initiating_company_name}</span> will
               be notified of any discrepancies via email, and their dashboard will show the results.
             </p>
             <div className="flex items-center gap-3 px-4 py-3 rounded-xl justify-center"
