@@ -93,6 +93,10 @@ Lumina's entire data layer runs on **MongoDB Atlas**, integrated via a **Python-
 
 ## 🔄 Full Reconciliation Flow
 
+<div align="center">
+  <img src="assets/lumina-workflow.png" alt="Lumina Reconciliation Workflow" width="850" />
+</div>
+
 ```
 1. User imports master balances (Excel/CSV) → MongoDB ledgers collection
 2. Counterparty uploads their statement via secure magic-link portal
