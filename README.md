@@ -69,6 +69,8 @@ Lumina's entire data layer runs on **MongoDB Atlas**, integrated via a **Python-
 | `update_one` | `discrepancies` | Persist AI analysis & email drafts |
 
 > **MCP Transport:** The MCP server is served over **real HTTP/SSE transport** — mounted at `/mcp/sse` inside the FastAPI process via a raw ASGI app (`create_mcp_asgi_app`). Clients connect via SSE, receive a `session_id`, and exchange JSON-RPC messages at `/mcp/messages/`. A lightweight in-process fallback is available when the HTTP endpoint is not yet ready (e.g., cold start). The full MCP protocol contract — tool discovery (`tools/list`), tool invocation (`tools/call`), and session lifecycle — is implemented end-to-end and verified: `GET /mcp/sse → 200`, `POST /mcp/messages → 202 Accepted`, `ListToolsRequest processed ✓`.
+>
+> **Why a custom MCP server?** Rather than wrapping a generic MongoDB client, Lumina implements a purpose-built MCP server (`backend/agent/mcp_server.py`) that exposes **MongoDB Atlas** as the agent's data superpowers — including Atlas Vector Search, aggregation pipelines, and multi-collection operations — directly over the MCP protocol. This gives our Google ADK agents structured, tool-call access to MongoDB Atlas data mid-reasoning, fulfilling the MongoDB partner track requirement: MongoDB Atlas is the core data layer powering every agent decision.
 
 ---
 

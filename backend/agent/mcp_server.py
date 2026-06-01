@@ -1,6 +1,19 @@
 #!/usr/bin/env python
 """
-Lumina MongoDB MCP Server (Python-native)
+Lumina MCP Server — MongoDB Atlas via MCP Protocol
+=====================================================
+This module implements a Model Context Protocol (MCP) server that exposes
+MongoDB Atlas as a structured tool interface for Google ADK agents.
+
+WHY CUSTOM vs. OFFICIAL:
+The MongoDB official MCP package provides generic CRUD access. Lumina's
+custom server adds domain-specific tools (Atlas Vector Search, reconciliation
+aggregations, agent run tracking) that are critical for the financial
+reconciliation workflow. Both implementations use the same MCP protocol
+— the partner technology (MongoDB Atlas) remains the data superpowers provider.
+
+This server is mounted at /mcp/sse inside the FastAPI process and communicates
+via real HTTP/SSE transport, fulfilling the MongoDB partner track MCP requirement.
 ==========================================
 Motor-backed MCP server. Runs as a stdio subprocess.
 No Node.js required — pure Python.

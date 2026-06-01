@@ -236,7 +236,7 @@ Always be accurate, professional, and data-driven.
 
 reconciliation_sub_agent = Agent(
     name="reconciliation_agent",
-    model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     description="Fetches B2B ledger data from MongoDB and identifies financial discrepancies",
     instruction=_RECONCILIATION_INSTRUCTION,
     tools=[get_ledger_pair, get_company_info],
@@ -244,21 +244,21 @@ reconciliation_sub_agent = Agent(
 
 analysis_sub_agent = Agent(
     name="analysis_agent",
-    model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     description="Provides root-cause analysis for financial discrepancies",
     instruction=_ANALYSIS_INSTRUCTION,
 )
 
 communication_sub_agent = Agent(
     name="communication_agent",
-    model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     description="Drafts professional B2B emails for discrepancy resolution",
     instruction=_COMMUNICATION_INSTRUCTION,
 )
 
 lumina_root_agent = Agent(
     name="lumina_orchestrator",
-    model=os.getenv("GEMINI_MODEL", "gemini-3-flash-preview"),
+    model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     description="Lumina AI — B2B financial reconciliation multi-agent orchestrator",
     instruction=_ORCHESTRATOR_INSTRUCTION,
     tools=[get_ledger_pair, get_company_info, get_platform_stats],
