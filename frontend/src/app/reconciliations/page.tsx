@@ -1081,8 +1081,6 @@ export default function ReconciliationsPage() {
   }
 
   async function handleRunAgent(record: MasterBalance) {
-    console.log("⚡ Mor Zap butonuna basıldı. Firma:", record.company_name, "Kendi Şirketimiz:", ownCompany);
-    
     if (!record.counterparty_id || !ownCompany?.id) {
       console.error('[triggerRecon] Missing counterparty_id or own company ID')
       return

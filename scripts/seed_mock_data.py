@@ -45,7 +45,7 @@ async def seed():
     client = motor.motor_asyncio.AsyncIOMotorClient(MONGODB_URI)
     db     = client[MONGODB_DB_NAME]
 
-    # ── 0. KULLANICI OLUŞTURMA (demo / lumina2026) ─────────────────────────
+    # ── 0. CREATE DEMO USER ──────────────────────────────────────────────────
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
     admin_role = await db.roles.find_one({"name": "System Administrator"})
@@ -69,7 +69,7 @@ async def seed():
         )
         print("✅ Kullanıcı güncellendi: username='demo' / password='lumina2026'")
 
-    # ── 1. Kendi firmanı bul veya oluştur ───────────────────────────────────
+    # ── 1. Find or create own company ────────────────────────────────────────
     own = await db.companies.find_one({"is_own_company": True})
     if not own:
         # company_settings'den al, companies'e upsert et
@@ -102,7 +102,7 @@ async def seed():
         own_name = own.get("name", "Kendi Firma")
         print(f"Kendi firma bulundu: {own_name} → {own_id}")
 
-    # ── 2. Karşı tarafı bul (is_own_company=False, ilk aktif) ───────────────
+    # ── 2. Find counterparty (first non-own company) ─────────────────────────
     cp = await db.companies.find_one({"is_own_company": {"$ne": True}})
     if not cp:
         print("HATA: Counterparty bulunamadı.")
@@ -114,7 +114,7 @@ async def seed():
     cp_name = cp.get("name", "Karşı Taraf")
     print(f"Karşı taraf: {cp_name} → {cp_id}")
 
-    # ── 3. Mevcut test ledger'larını temizle ─────────────────────────────────
+    # ── 3. Clean up existing test ledger data ────────────────────────────────
     del_a = await db.ledgers.delete_many({
         "company_id": own_id, "counterparty_id": cp_id
     })

@@ -51,6 +51,6 @@ def load_enterprise_config():
 
 if __name__ == "__main__":
     load_enterprise_config()
-    # Config yüklendikten SONRA import ediyoruz ki doğru verileri okusun!
+    # Import AFTER config is loaded so environment variables are populated
     from scheduler.cron_runner import start_scheduler
     asyncio.run(start_scheduler())
