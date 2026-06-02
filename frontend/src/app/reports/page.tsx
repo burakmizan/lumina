@@ -1,16 +1,16 @@
 'use client'
 import { useState, useMemo, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import {
   BarChart2, FileSpreadsheet, FileText, CheckCircle2, AlertTriangle, XCircle,
-  Clock, Zap, ChevronRight, Loader2, RefreshCw, TrendingUp, Activity, Users,
+  Clock, Zap, ChevronRight, Loader2, RefreshCw, TrendingUp, Activity, Users, Square,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
-import { getAgentRuns, getCompanies } from '@/lib/api'
+import { getAgentRuns, getCompanies, cancelAgentRun } from '@/lib/api'
 import { api } from '@/lib/api'
 import { cn, formatDate } from '@/lib/utils'
 
@@ -225,6 +225,15 @@ export default function ReportsPage() {
     refetchInterval: 20_000,
   })
 
+  const qc = useQueryClient()
+
+  const cancelMutation = useMutation({
+    mutationFn: (runId: string) => cancelAgentRun(runId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agent-runs'] })
+    },
+  })
+
   const { data: allDiscrepancies = [] } = useQuery<{
     id: string; company_b_id: string; discrepancy_type: string;
     status: string; difference: number; detected_at: string;
@@ -398,18 +407,18 @@ export default function ReportsPage() {
               Agent run history, discrepancy trends, and performance insights.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => refetch()}
               className="flex items-center gap-1.5 px-3 py-2 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 hover:border-slate-300 rounded-xl transition-colors">
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
             <button onClick={exportExcel}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl transition-colors">
-              <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
+              <FileSpreadsheet className="w-3.5 h-3.5" /><span className="hidden sm:inline">Export</span> Excel
             </button>
             <button onClick={exportPDF}
               className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl transition-colors">
-              <FileText className="w-3.5 h-3.5" /> Export PDF
+              <FileText className="w-3.5 h-3.5" /><span className="hidden sm:inline">Export</span> PDF
             </button>
           </div>
         </div>
@@ -782,11 +791,22 @@ export default function ReportsPage() {
 
                       {/* Status badge */}
                       <span className={cn(
-                        'text-[11px] font-medium px-2 py-0.5 rounded-full border capitalize flex-shrink-0',
-                        STATUS_COLORS[run.status as keyof typeof STATUS_COLORS] || STATUS_COLORS.cancelled,
+                        'text-[11px] font-semibold px-2 py-0.5 rounded-full border',
+                        STATUS_COLORS[run.status as keyof typeof STATUS_COLORS] ?? STATUS_COLORS.cancelled,
                       )}>
                         {run.status}
                       </span>
+                      {run.status === 'running' && (
+                        <button
+                          onClick={e => { e.stopPropagation(); cancelMutation.mutate(run.id) }}
+                          disabled={cancelMutation.isPending}
+                          title="Cancel this run"
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border transition-colors bg-red-50 text-red-600 border-red-200 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          <Square className="w-2.5 h-2.5 fill-red-500" />
+                          {cancelMutation.isPending ? 'Stopping…' : 'Stop'}
+                        </button>
+                      )}
 
                       <ChevronRight className={cn(
                         'w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200',

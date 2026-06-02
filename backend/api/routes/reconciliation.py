@@ -50,6 +50,34 @@ async def list_agent_runs(
         runs.append(doc)
     return runs
 
+@router.post("/cancel/{run_id}")
+async def cancel_agent_run(
+    run_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_permission("reconciliations.run")),
+):
+    """
+    Cancel a running agent run — sets status to 'cancelled'.
+    The ReconciliationEngine polls this on each step and aborts gracefully.
+    """
+    from datetime import datetime
+    doc = await db["agent_runs"].find_one({"_id": run_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    if doc.get("status") != "running":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run cannot be cancelled (current status: {doc.get('status')}).",
+        )
+    await db["agent_runs"].update_one(
+        {"_id": run_id},
+        {"$set": {
+            "status":       "cancelled",
+            "completed_at": datetime.utcnow(),
+            "error":        "Cancelled by user",
+        }},
+    )
+    return {"status": "cancelled", "run_id": run_id, "message": "Run cancelled successfully."}
 
 @router.get("/status/{run_id}")
 async def get_run_status(

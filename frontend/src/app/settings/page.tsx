@@ -165,7 +165,7 @@ function CompanyProfileTab({ canEdit }: { canEdit: boolean }) {
           </button>
         ) : null
       }>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Company Name" editing={editing}>
             {editing ? (
               <input className={INPUT} value={s?.identity?.company_name || ''} onChange={e => setForm(f => ({ ...f, identity: { ...f.identity!, company_name: e.target.value } }))} />
@@ -188,7 +188,7 @@ function CompanyProfileTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Company Profile */}
       <Card title="Company Profile">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Industry" editing={editing}>
             {editing ? (
               <select className={INPUT} value={s?.profile?.industry || ''} onChange={e => setForm(f => ({ ...f, profile: { ...f.profile!, industry: e.target.value } }))}>
@@ -210,7 +210,7 @@ function CompanyProfileTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Financial Settings */}
       <Card title="Financial Settings">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Base Currency" editing={editing}>
             {editing ? (
               <select className={INPUT} value={s?.financial?.base_currency || ''} onChange={e => setForm(f => ({ ...f, financial: { ...f.financial!, base_currency: e.target.value } }))}>
@@ -228,7 +228,7 @@ function CompanyProfileTab({ canEdit }: { canEdit: boolean }) {
 
       {/* Contact */}
       <Card title="Contact Information">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Contact Name" editing={editing}>
             {editing ? (
               <input className={INPUT} value={s?.contact?.contact_name || ''} onChange={e => setForm(f => ({ ...f, contact: { ...f.contact!, contact_name: e.target.value } }))} />
@@ -316,22 +316,30 @@ function UsersTab({ canManage, currentUser }: { canManage: boolean; currentUser:
 
       <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
         {users.map(u => (
-          <div key={u.id} className="flex items-center gap-4 px-5 py-3.5">
+          <div key={u.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5">
             <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-bold text-emerald-700">
                 {(u.full_name || u.username).charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900">{u.full_name || u.username}</p>
-              <p className="text-xs text-slate-500">{u.email}</p>
+              <p className="text-sm font-medium text-slate-900 truncate">{u.full_name || u.username}</p>
+              <p className="text-xs text-slate-500 truncate">{u.email}</p>
+              <div className="flex items-center gap-1.5 mt-1 sm:hidden">
+                <RoleBadge role={u.role} />
+                {!u.is_active && (
+                  <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
+                )}
+              </div>
             </div>
-            <RoleBadge role={u.role} />
-            {!u.is_active && (
-              <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
-            )}
+            <div className="hidden sm:flex items-center gap-2">
+              <RoleBadge role={u.role} />
+              {!u.is_active && (
+                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">Inactive</span>
+              )}
+            </div>
             {canManage && u.id !== currentUser?.id && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => { setEditUser(u); setFormError('') }}
                   className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"

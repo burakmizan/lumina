@@ -307,9 +307,9 @@ export default function ErpIntegrationPage() {
           </div>
         </div>
 
-        {/* Column headers */}
+        {/* Column headers — desktop only */}
         <div
-          className="grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
+          className="hidden md:grid text-[11px] font-semibold text-slate-500 uppercase tracking-wider px-5 py-3 border-b border-slate-200 bg-slate-50"
           style={{ gridTemplateColumns: '1fr 200px 180px 100px 220px' }}
         >
           <span>Name / Description</span>
@@ -346,54 +346,101 @@ export default function ErpIntegrationPage() {
               const isDel = deleteTarget?.id === integration.id && deleteMutation.isPending
 
               return (
-                <div
-                  key={integration.id}
-                  className="grid items-center px-5 py-4 hover:bg-slate-50 transition-colors"
-                  style={{ gridTemplateColumns: '1fr 200px 180px 100px 220px' }}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-[#29BE98]/10 border border-[#29BE98]/20 flex items-center justify-center flex-shrink-0">
-                        <Plug className="w-3.5 h-3.5 text-[#29BE98]" />
+                <div key={integration.id} className="hover:bg-slate-50 transition-colors">
+                  {/* ── Mobile Card (< md) ── */}
+                  <div className="block md:hidden px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#29BE98]/10 border border-[#29BE98]/20 flex items-center justify-center flex-shrink-0">
+                        <Plug className="w-4 h-4 text-[#29BE98]" />
                       </div>
-                      <div className="min-w-0">
+                      <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-900 truncate">{integration.name}</p>
                         {integration.description && (
-                          <p className="text-xs text-slate-500 truncate">{integration.description}</p>
+                          <p className="text-xs text-slate-500 truncate mt-0.5">{integration.description}</p>
                         )}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2.5">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Key Prefix</p>
+                            <p className="text-xs font-mono text-slate-600 truncate">{integration.key_prefix}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Created</p>
+                            <p className="text-xs text-slate-500">{new Date(integration.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 mb-0.5">Tracker ID</p>
+                            <p className="text-xs font-mono text-slate-400 truncate">{integration.tracker_id.slice(0, 20)}…</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          <button
+                            onClick={() => handleDownload(integration)}
+                            disabled={isDl}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20 hover:bg-[#2597F8]/20 transition-colors disabled:opacity-40"
+                          >
+                            {isDl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            {isDl ? 'Building…' : 'Download'}
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(integration)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors ml-auto"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="font-mono text-xs text-[#94A3B8] bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 truncate">
-                    {integration.key_prefix}
-                  </div>
+                  {/* ── Desktop Row (≥ md) ── */}
+                  <div
+                    className="hidden md:grid items-center px-5 py-4"
+                    style={{ gridTemplateColumns: '1fr 200px 180px 100px 220px' }}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-[#29BE98]/10 border border-[#29BE98]/20 flex items-center justify-center flex-shrink-0">
+                          <Plug className="w-3.5 h-3.5 text-[#29BE98]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900 truncate">{integration.name}</p>
+                          {integration.description && (
+                            <p className="text-xs text-slate-500 truncate">{integration.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="font-mono text-xs text-slate-400 truncate">
-                    {integration.tracker_id.slice(0, 16)}…
-                  </div>
+                    <div className="font-mono text-xs text-[#94A3B8] bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 truncate">
+                      {integration.key_prefix}
+                    </div>
 
-                  <div className="text-xs text-slate-500">
-                    {new Date(integration.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
+                    <div className="font-mono text-xs text-slate-400 truncate">
+                      {integration.tracker_id.slice(0, 16)}…
+                    </div>
 
-                  <div className="flex items-center justify-end gap-2">
-                    <button
-                      onClick={() => handleDownload(integration)}
-                      disabled={isDl}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20 hover:bg-[#2597F8]/20 transition-colors disabled:opacity-40"
-                      title="Download agent package (regenerates key)"
-                    >
-                      {isDl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                      {isDl ? 'Building…' : 'Download Package'}
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(integration)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      title="Revoke integration"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="text-xs text-slate-500">
+                      {new Date(integration.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleDownload(integration)}
+                        disabled={isDl}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2597F8]/10 text-[#2597F8] border border-[#2597F8]/20 hover:bg-[#2597F8]/20 transition-colors disabled:opacity-40"
+                        title="Download agent package (regenerates key)"
+                      >
+                        {isDl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        {isDl ? 'Building…' : 'Download Package'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(integration)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Revoke integration"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )

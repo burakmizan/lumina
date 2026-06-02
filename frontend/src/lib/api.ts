@@ -72,6 +72,9 @@ export const getLedgers = (params?: Record<string, string>) =>
 // ── Discrepancies ─────────────────────────────────────────────────────────────
 export const getAgentRuns = (limit = 50) =>
   api.get(`/api/v1/reconciliation/runs?limit=${limit}`).then(r => r.data)
+
+export const cancelAgentRun = (runId: string) =>
+  api.post(`/api/v1/reconciliation/cancel/${runId}`).then(r => r.data)
 export const getDiscrepancies = (params?: Record<string, string>) =>
   api.get('/api/v1/discrepancies/', { params }).then(r => r.data)
 

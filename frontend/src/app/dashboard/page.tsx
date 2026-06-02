@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, AlertTriangle, Mail, Zap, ChevronRight,
-  Play, Loader2, CheckCircle2, Activity, RefreshCw, Clock,
+  Play, Loader2, CheckCircle2, Activity, RefreshCw, Clock, Square,
 } from 'lucide-react'
 import { AppShell } from '@/components/layout/AppShell'
 import { TypeBadge, StatusBadge } from '@/components/ui/Badge'
@@ -15,7 +15,7 @@ const DiscrepancyModal = dynamic(
 )
 import {
   getCompanies, getDiscrepancies, approveDiscrepancy,
-  getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns,
+  getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns, cancelAgentRun
 } from '@/lib/api'
 import { fireAgentIsland } from '@/components/ui/AgentIsland'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from 'recharts'
@@ -130,6 +130,14 @@ export default function DashboardPage() {
     acc[c.id] = c
     return acc
   }, {})
+
+  const qcDash = useQueryClient()
+  const cancelRunMutation = useMutation({
+    mutationFn: (runId: string) => cancelAgentRun(runId),
+    onSuccess: () => {
+      qcDash.invalidateQueries({ queryKey: ['agent-runs'] })
+    },
+  })
 
   const awaitingCount  = allDiscs.filter(d => d.status === 'awaiting_approval').length
   const activeCount    = allDiscs.filter(d => !['resolved', 'email_sent'].includes(d.status)).length
@@ -367,11 +375,24 @@ export default function DashboardPage() {
                     run.status === 'failed'    && 'text-red-600',
                     run.status === 'cancelled' && 'text-slate-400',
                   )}>{run.status}</span>
-                  {run.discrepancies_found > 0 && (
-                    <span className="ml-auto text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
-                      +{run.discrepancies_found}
-                    </span>
-                  )}
+                  <div className="ml-auto flex items-center gap-1.5">
+                    {run.discrepancies_found > 0 && (
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
+                        +{run.discrepancies_found}
+                      </span>
+                    )}
+                    {run.status === 'running' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); cancelRunMutation.mutate(run.id) }}
+                        disabled={cancelRunMutation.isPending}
+                        title="Stop this run"
+                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      >
+                        <Square className="w-2 h-2 fill-red-500" />
+                        Stop
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-slate-700 font-medium truncate">
                   {companyMap[run.company_a_id]?.name?.split(' ')[0] ?? '—'}
@@ -565,7 +586,7 @@ function StatCard({
           {icon}
         </div>
       </div>
-      <p className={cn('text-4xl font-bold mb-1.5 tabular-nums', c.value)}>{value}</p>
+      <p className={cn('text-3xl sm:text-4xl font-bold mb-1.5 tabular-nums', c.value)}>{value}</p>
       {sub && <p className="text-xs text-text-muted leading-snug line-clamp-2">{sub}</p>}
     </div>
   )

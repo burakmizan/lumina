@@ -144,7 +144,7 @@ export function AgentExecutionPanel() {
     <div
       ref={panelRef}
       className="fixed z-[150] bg-white border border-slate-200 rounded-2xl shadow-xl animate-in fade-in duration-200"
-      style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, width: 260, visibility: mounted ? 'visible' : 'hidden' }}
+      style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, width: 260, maxWidth: 'calc(100vw - 32px)', visibility: mounted ? 'visible' : 'hidden' }}
     >
       <div
         onMouseDown={handleMouseDown}
@@ -194,8 +194,8 @@ export function AgentExecutionPanel() {
   return (
     <div
       ref={panelRef}
-      className="fixed z-[150] w-[400px] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col animate-in fade-in duration-300"
-      style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, willChange: isDragging ? 'left, top' : 'auto', visibility: mounted ? 'visible' : 'hidden' }}
+      className="fixed z-[150] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col animate-in fade-in duration-300"
+      style={{ left: dragPosRef.current.x, top: dragPosRef.current.y, width: 400, maxWidth: 'calc(100vw - 32px)', willChange: isDragging ? 'left, top' : 'auto', visibility: mounted ? 'visible' : 'hidden' }}
     >
       {/* Header */}
       <div
