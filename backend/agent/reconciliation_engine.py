@@ -169,6 +169,7 @@ class ReconciliationEngine:
                     val_a_match = float(rec_a["amount"] if rec_a else 0.0)
                     val_b_match = float(rec_b["amount"] if rec_b else 0.0)
                     
+                    _ccy_match = (rec_a or rec_b or {}).get("currency") or "USD"
                     payload = DiscrepancyCreate(
                         company_a_id=company_a_id,
                         company_b_id=company_b_id,
@@ -177,6 +178,7 @@ class ReconciliationEngine:
                         company_a_amount=val_a_match,
                         company_b_amount=val_b_match,
                         difference=0.0,
+                        currency=_ccy_match,
                     )
                     disc = await self.disc_svc.create(payload, agent_run_id=run_id)
                     await self.disc_svc.update(
@@ -220,6 +222,7 @@ class ReconciliationEngine:
                 
                 calculated_diff = abs(abs(val_a) - abs(val_b))
 
+                _ccy = (rec_a or rec_b or {}).get("currency") or "USD"
                 payload = DiscrepancyCreate(
                     company_a_id=company_a_id,
                     company_b_id=company_b_id,
@@ -228,6 +231,7 @@ class ReconciliationEngine:
                     company_a_amount=val_a,
                     company_b_amount=val_b,
                     difference=calculated_diff,
+                    currency=_ccy,
                 )
                 disc = await self.disc_svc.create(payload, agent_run_id=run_id)
                 await self.disc_svc.update(

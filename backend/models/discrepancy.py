@@ -11,6 +11,7 @@ class DiscrepancyBase(BaseModel):
     company_a_amount: Optional[float] = Field(default=None, description="Amount as recorded by Company A")
     company_b_amount: Optional[float] = Field(default=None, description="Amount as recorded by Company B")
     difference: Optional[float] = Field(default=None, description="Absolute difference between the two amounts")
+    currency: Optional[str] = Field(default="USD", description="Transaction currency code (ISO 4217)")
 
     model_config = {"populate_by_name": True}
 
