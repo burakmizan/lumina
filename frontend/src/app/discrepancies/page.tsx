@@ -10,7 +10,7 @@ const DiscrepancyModal = dynamic(
   () => import('@/components/dashboard/DiscrepancyModal').then(m => ({ default: m.DiscrepancyModal })),
   { ssr: false }
 )
-import { getCompanies, getDiscrepancies, approveDiscrepancy } from '@/lib/api'
+import { getCompanies, getDiscrepancies, approveDiscrepancy, getCompanySettings } from '@/lib/api'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 import type { Company, Discrepancy, DiscrepancyType } from '@/types'
@@ -54,6 +54,12 @@ export default function DiscrepanciesPage() {
     refetchInterval: 30_000,
   })
 
+  const { data: companySettings } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: getCompanySettings,
+    staleTime: 300_000,
+  })
+
   const approveMutation = useMutation({
     mutationFn: (id: string) => approveDiscrepancy(id),
     onSuccess: (updated: Discrepancy) => {
@@ -70,6 +76,22 @@ export default function DiscrepanciesPage() {
     acc[c.id] = c
     return acc
   }, {})
+
+  // FORCE TENANT OVERRIDE: Discrepancy sayfasında da Company A (Sol Taraf) her zaman Tenant'ın kendisidir.
+  const tenantName = (companySettings as any)?.identity?.company_name;
+  const tenantEmail = (companySettings as any)?.contact?.email || (companySettings as any)?.contact?.contact_email;
+
+  if (tenantName) {
+    allDiscs.forEach(disc => {
+      companyMap[disc.company_a_id] = {
+        ...(companyMap[disc.company_a_id] || {}),
+        id: disc.company_a_id,
+        name: tenantName,
+        reconciliation_email: tenantEmail || companyMap[disc.company_a_id]?.reconciliation_email,
+        is_own_company: true,
+      } as Company
+    })
+  }
 
   const filtered = allDiscs
     .filter(d => typeFilter   === 'all' || d.discrepancy_type === typeFilter)

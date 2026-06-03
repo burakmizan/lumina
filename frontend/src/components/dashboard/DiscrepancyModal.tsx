@@ -147,7 +147,8 @@ export function DiscrepancyModal({
               )}>
                 {disc.company_a_amount != null ? formatCurrency(disc.company_a_amount, disc.currency ?? undefined) : <span className="text-slate-400 text-base">—</span>}
               </p>
-              {companyA?.reconciliation_email && (
+              {/* Tenant mailini göster, yoksa default'a düşme boş bırak ki yanıltmasın */}
+              {companyA?.reconciliation_email && companyA.reconciliation_email !== 'accounting@acme.com' && (
                 <p className="text-[10px] text-slate-400 mt-1.5 truncate">{companyA.reconciliation_email}</p>
               )}
             </div>

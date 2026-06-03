@@ -144,11 +144,28 @@ export default function DashboardPage() {
   }, [ownCompany, readyRecords, runAllState.running, qc, refetchRuns])
 
   const companyMap = companies.reduce<Record<string, Company>>((acc, c) => {
-    acc[c.id] = c
-    return acc
-  }, {})
+    acc[c.id] = c
+    return acc
+  }, {})
 
-  const qcDash = useQueryClient()
+  // FORCE TENANT OVERRIDE: Company A (Sol Taraf) her zaman Tenant'ın kendisidir.
+  // Veritabanındaki referans ID eski olsa bile UI'da ayarları (TEST COMPANY) basıyoruz.
+  const tenantName = (companySettings as any)?.identity?.company_name;
+  const tenantEmail = (companySettings as any)?.contact?.email;
+
+  if (tenantName) {
+    allDiscs.forEach(disc => {
+      companyMap[disc.company_a_id] = {
+        ...(companyMap[disc.company_a_id] || {}),
+        id: disc.company_a_id,
+        name: tenantName,
+        reconciliation_email: tenantEmail || companyMap[disc.company_a_id]?.reconciliation_email,
+        is_own_company: true,
+      } as Company
+    })
+  }
+
+  const qcDash = useQueryClient()
   const cancelRunMutation = useMutation({
     mutationFn: (runId: string) => cancelAgentRun(runId),
     onSuccess: () => {
