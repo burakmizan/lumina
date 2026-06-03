@@ -147,8 +147,6 @@ async def gemini_chat(
     if request.page:
         system += f"\n\nUser is currently on the **{request.page}** page."
 
-    from agent.adk_engine import ask_lumina
-
     full_message = request.message
     if request.context:
         full_message = (
@@ -159,9 +157,37 @@ async def gemini_chat(
     elif live_ctx:
         full_message = f"Platform data: {live_ctx}\n\nQuestion: {request.message}"
 
-    response_text = await ask_lumina(
-        message=full_message,
-        user_id="lumina-chat",
-    )
+    # Primary: ADK runner (uses session service + Gemini 3.5 Flash)
+    # Fallback: direct google.generativeai call (works even on cold start)
+    response_text: str = ""
+    try:
+        from agent.adk_engine import ask_lumina
+        response_text = await ask_lumina(
+            message=full_message,
+            user_id="lumina-chat",
+        )
+    except Exception as adk_err:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"[GeminiChat] ADK ask_lumina failed ({adk_err}), falling back to direct genai call"
+        )
+        try:
+            model = genai.GenerativeModel(
+                model_name=settings.GEMINI_MODEL or "gemini-1.5-flash",
+                system_instruction=system,
+            )
+            history_msgs = [
+                {
+                    "role": m.role if m.role == "user" else "model",
+                    "parts": [{"text": m.content}],
+                }
+                for m in request.history[-10:]
+            ]
+            chat_session = model.start_chat(history=history_msgs)
+            result = chat_session.send_message(full_message)
+            response_text = result.text
+        except Exception as fallback_err:
+            logging.getLogger(__name__).error(f"[GeminiChat] Fallback also failed: {fallback_err}")
+            response_text = "I'm having trouble connecting to the AI service right now. Please try again in a moment."
 
     return ChatResponse(response=response_text)

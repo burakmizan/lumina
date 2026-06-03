@@ -186,7 +186,7 @@ export function GeminiPanel() {
                 className={cn(
                   'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm',
                   msg.role === 'user'
-                    ? 'text-white rounded-br-sm'
+                    ? 'text-white rounded-br-sm bg-gradient-to-br from-[#29BE98] to-[#2597F8]'
                   : 'bg-slate-50 border border-slate-100 text-slate-800 rounded-bl-sm',
               )}>
                 {msg.role === 'assistant'
