@@ -35,6 +35,7 @@ import {
   getDiscrepancies,
   getCounterpartySessions,
   getCounterpartyPortalResponses,
+  getCompanySettings,
 } from '@/lib/api'
 import type {
   MasterBalance,
@@ -985,8 +986,25 @@ export default function ReconciliationsPage() {
     queryKey: ['companies'],
     queryFn: getCompanies,
   })
-  const ownCompany = companies.find((c: { is_own_company: boolean }) => c.is_own_company)
-    ?? (companies as { id: string; is_own_company: boolean }[])[0]
+
+  const { data: companySettings } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: getCompanySettings,
+    staleTime: 300_000,
+  })
+
+  const ownCompany = useMemo(() => {
+    const taxId = (companySettings as any)?.identity?.identifier_value as string | undefined
+    const name  = (companySettings as any)?.identity?.company_name  as string | undefined
+    if (taxId || name) {
+      const match = (companies as any[]).find(c =>
+        (taxId && c.tax_id === taxId) ||
+        (name  && c.name?.toLowerCase() === name.toLowerCase())
+      )
+      if (match) return match
+    }
+    return (companies as any[]).find(c => c.is_own_company) ?? null
+  }, [companies, companySettings])
 
   const { data: discrepancies = [] } = useQuery<Discrepancy[]>({
     queryKey: ['discrepancies'],

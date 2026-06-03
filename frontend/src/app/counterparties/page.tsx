@@ -864,7 +864,18 @@ export default function CounterpartiesPage() {
       .map(d => d.company_b_id)
   ), [allDiscs])
 
-  const ownCompany     = useMemo(() => companies.find(c => c.is_own_company) ?? companies[0], [companies])
+  const ownCompany = useMemo(() => {
+    const taxId = (companySettings as any)?.identity?.identifier_value as string | undefined
+    const name  = (companySettings as any)?.identity?.company_name  as string | undefined
+    if (taxId || name) {
+      const match = companies.find(c =>
+        (taxId && (c as any).tax_id === taxId) ||
+        (name  && c.name?.toLowerCase() === name.toLowerCase())
+      )
+      if (match) return match
+    }
+    return companies.find(c => c.is_own_company) ?? null
+  }, [companies, companySettings])
   const counterparties = useMemo(() => companies.filter(c => c.id !== ownCompany?.id), [companies, ownCompany?.id])
 
   const filteredCounterparties = useMemo(() => {

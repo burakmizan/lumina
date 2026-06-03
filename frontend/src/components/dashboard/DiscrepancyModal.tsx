@@ -145,7 +145,7 @@ export function DiscrepancyModal({
                     : 'text-emerald-600'
                   : 'text-slate-900',
               )}>
-                {disc.company_a_amount != null ? formatCurrency(disc.company_a_amount) : <span className="text-slate-400 text-base">—</span>}
+                {disc.company_a_amount != null ? formatCurrency(disc.company_a_amount, disc.currency ?? undefined) : <span className="text-slate-400 text-base">—</span>}
               </p>
               {companyA?.reconciliation_email && (
                 <p className="text-[10px] text-slate-400 mt-1.5 truncate">{companyA.reconciliation_email}</p>
@@ -180,7 +180,7 @@ export function DiscrepancyModal({
                     : 'text-slate-900',
               )}>
                 {disc.company_b_amount != null
-                  ? formatCurrency(disc.company_b_amount)
+                  ? formatCurrency(disc.company_b_amount, disc.currency ?? undefined)
                   : <span className="text-red-500 font-semibold text-sm">NOT FOUND</span>}
               </p>
               {companyB?.reconciliation_email && (
@@ -193,7 +193,7 @@ export function DiscrepancyModal({
           {disc.difference != null && disc.difference > 0 && (
             <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 mb-3">
               <TrendingDown className="w-4 h-4 text-red-500 flex-shrink-0" />
-              <span className="text-sm font-bold text-red-700">{formatCurrency(disc.difference)} difference</span>
+              <span className="text-sm font-bold text-red-700">{formatCurrency(disc.difference, disc.currency ?? undefined)} difference</span>
               <span className="text-xs text-red-400 ml-auto">unreconciled amount</span>
             </div>
           )}

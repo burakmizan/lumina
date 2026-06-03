@@ -185,6 +185,7 @@ export interface Discrepancy {
   company_a_amount?: number | null
   company_b_amount?: number | null
   difference?: number | null
+  currency?: string | null
   ai_analysis: string
   email_draft?: string | null
   status: DiscrepancyStatus

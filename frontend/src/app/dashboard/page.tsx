@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -15,7 +15,7 @@ const DiscrepancyModal = dynamic(
 )
 import {
   getCompanies, getDiscrepancies, approveDiscrepancy,
-  getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns, cancelAgentRun
+  getDiscrepancyAnalytics, getMasterBalances, triggerReconciliation, getAgentRuns, cancelAgentRun, getCompanySettings
 } from '@/lib/api'
 import { fireAgentIsland } from '@/components/ui/AgentIsland'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell, PieChart, Pie } from 'recharts'
@@ -101,7 +101,24 @@ export default function DashboardPage() {
     refetchInterval: 10_000,
   })
 
-  const ownCompany = companies.find((c: Company) => c.is_own_company) ?? companies[0]
+  const { data: companySettings } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: getCompanySettings,
+    staleTime: 300_000,
+  })
+
+  const ownCompany = useMemo(() => {
+    const taxId = (companySettings as any)?.identity?.identifier_value as string | undefined
+    const name  = (companySettings as any)?.identity?.company_name  as string | undefined
+    if (taxId || name) {
+      const match = companies.find((c: Company) =>
+        (taxId && (c as any).tax_id === taxId) ||
+        (name  && c.name?.toLowerCase() === name.toLowerCase())
+      )
+      if (match) return match
+    }
+    return companies.find((c: Company) => c.is_own_company) ?? null
+  }, [companies, companySettings])
 
   const readyRecords = (masterBalances as { reconciliation_status: string; counterparty_id: string | null }[])
     .filter(r => r.reconciliation_status === 'ready_for_external' && r.counterparty_id)
@@ -312,7 +329,7 @@ export default function DashboardPage() {
                         <>
                           <span className="text-text-muted">·</span>
                           <span className="text-red-500 font-medium">
-                            {formatCurrency(disc.difference)} diff
+                            {formatCurrency(disc.difference, (disc as Discrepancy & { currency?: string }).currency ?? undefined)} diff
                           </span>
                         </>
                       )}

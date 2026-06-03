@@ -243,7 +243,7 @@ export default function DiscrepanciesPage() {
                       <span className="text-slate-400">↔</span>
                       <span className="truncate max-w-[120px] sm:max-w-[140px]">{cB?.name ?? `…${disc.company_b_id.slice(-6)}`}</span>
                       {disc.difference != null && (
-                        <span className="md:hidden text-red-500 font-medium whitespace-nowrap">· {formatCurrency(disc.difference)}</span>
+                        <span className="md:hidden text-red-500 font-medium whitespace-nowrap">· {formatCurrency(disc.difference, (disc as Discrepancy & { currency?: string }).currency ?? undefined)}</span>
                       )}
                     </div>
                   </div>
@@ -252,7 +252,7 @@ export default function DiscrepanciesPage() {
                   <div className="hidden md:block text-right flex-shrink-0 w-36">
                     {disc.difference != null && (
                       <>
-                        <p className="text-sm font-semibold text-red-500">{formatCurrency(disc.difference)}</p>
+                        <p className="text-sm font-semibold text-red-500">{formatCurrency(disc.difference, (disc as Discrepancy & { currency?: string }).currency ?? undefined)}</p>
                         <p className="text-[10px] text-slate-400">difference</p>
                       </>
                     )}
