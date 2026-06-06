@@ -1,6 +1,7 @@
 import io
 import re
 import os
+from fastapi import Body
 from urllib.parse import quote
 import logging
 from typing import List
@@ -295,9 +296,13 @@ async def delete_file(
 
 # ── Magic link dispatch ───────────────────────────────────────────────────────
 
+class _MagicLinkBody(BaseModel):
+    frontend_origin: str = ""
+
 @router.post("/send-magic-link/{counterparty_id}", response_model=SendMagicLinkResponse)
 async def send_magic_link_from_reconciliation(
     counterparty_id: str,
+    body: _MagicLinkBody = Body(default=_MagicLinkBody()),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_permission("reconciliations.run")),
 ):
@@ -335,13 +340,14 @@ async def send_magic_link_from_reconciliation(
     session_svc = ReconciliationSessionService(db)
     session = await session_svc.create(own_company["id"], counterparty_id)
 
+    _origin = (body.frontend_origin or "").rstrip("/") or settings.FRONTEND_BASE_URL
     email_svc  = MagicLinkEmailService()
     email_sent = await email_svc.send_magic_link(
         counterparty_name=counterparty["name"],
         initiating_company_name=own_company["name"],
         recipient_email=email,
         token=session["token"],
-        frontend_base_url=settings.FRONTEND_BASE_URL,
+        frontend_base_url=_origin,
     )
 
     logger.info(
@@ -349,7 +355,7 @@ async def send_magic_link_from_reconciliation(
         session["id"], counterparty["name"], email,
     )
 
-    portal_url = f"{settings.FRONTEND_BASE_URL}/portal/reconcile?token={session['token']}"
+    portal_url = f"{_origin}/portal/reconcile?token={session['token']}"
     return SendMagicLinkResponse(
         session_id=session["id"],
         token_preview=session["token"][-8:],

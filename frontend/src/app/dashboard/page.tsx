@@ -132,7 +132,7 @@ export default function DashboardPage() {
     setRunAllState({ running: true, done: 0, total: readyRecords.length })
     for (const record of readyRecords as { counterparty_id: string }[]) {
       try {
-        const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
+        const res = await triggerReconciliation(ownCompany?.id ?? null, record.counterparty_id)
         if (res?.run_id) fireAgentIsland(res.run_id)
       } catch { /* continue */ }
       setRunAllState(s => ({ ...s, done: s.done + 1 }))

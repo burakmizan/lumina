@@ -8,12 +8,22 @@ router = APIRouter()
 
 @router.post("/run")
 async def trigger_reconciliation(
-    company_a_id: str,
     company_b_id: str,
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_permission("reconciliations.run")),
+    company_a_id: str | None = None,
 ):
+    # Determine own company from company_settings if not provided by frontend
+    if not company_a_id:
+        from services.company_service import CompanyService as _CS
+        own = await _CS(db).get_own_company()
+        if not own:
+            raise HTTPException(
+                status_code=400,
+                detail="Own company not configured. Complete onboarding in Settings first.",
+            )
+        company_a_id = own["id"]
     """
     Trigger the reconciliation agent asynchronously — returns run_id immediately
     so the frontend AgentIsland can display live progress while the agent runs.

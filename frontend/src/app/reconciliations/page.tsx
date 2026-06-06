@@ -1099,14 +1099,15 @@ export default function ReconciliationsPage() {
   }
 
   async function handleRunAgent(record: MasterBalance) {
-    if (!record.counterparty_id || !ownCompany?.id) {
-      console.error('[triggerRecon] Missing counterparty_id or own company ID')
-      return
-    }
+    if (!record.counterparty_id) {
+      console.error('[triggerRecon] Missing counterparty_id')
+      return
+    }
+    // ownCompany?.id is passed if known; backend will resolve from settings if null
 
     setRunningId(record.id)
     try {
-      const res = await triggerReconciliation(ownCompany.id, record.counterparty_id)
+      const res = await triggerReconciliation(ownCompany?.id ?? null, record.counterparty_id)
       if (res?.run_id) {
         fireAgentIsland(res.run_id)   // API hemen döner, AgentIsland anında açılır
         setTimeout(() => {

@@ -82,12 +82,11 @@ export const approveDiscrepancy = (id: string) =>
   api.post(`/api/v1/discrepancies/${id}/approve`).then(r => r.data)
 
 // ── Reconciliation ────────────────────────────────────────────────────────────
-export const triggerReconciliation = (companyAId: string, companyBId: string) =>
-  api
-    .post('/api/v1/reconciliation/run', null, {
-      params: { company_a_id: companyAId, company_b_id: companyBId },
-    })
-    .then(r => r.data)
+export const triggerReconciliation = (companyAId: string | null, companyBId: string) => {
+  const params = new URLSearchParams({ company_b_id: companyBId })
+  if (companyAId) params.append('company_a_id', companyAId)
+  return api.post(`/api/v1/reconciliation/run?${params.toString()}`).then(r => r.data)
+}
 
 export const globalSearch = (q: string) =>
   api.get('/api/v1/search/', { params: { q } }).then(r => r.data)
@@ -180,7 +179,9 @@ export const getStatementFiles = (counterpartyId: string) =>
   api.get(`/api/v1/reconciliations/statement-files/${counterpartyId}`).then(r => r.data)
 
 export const sendMagicLinkFromReconciliation = (counterpartyId: string) =>
-  api.post(`/api/v1/reconciliations/send-magic-link/${counterpartyId}`).then(r => r.data)
+  api.post(`/api/v1/reconciliations/send-magic-link/${counterpartyId}`, {
+    frontend_origin: typeof window !== 'undefined' ? window.location.origin : '',
+  }).then(r => r.data)
 
 export const deleteMasterBalance = (id: string) =>
   api.delete(`/api/v1/reconciliations/${id}`).then(r => r.data)
